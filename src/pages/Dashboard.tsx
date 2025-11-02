@@ -4,10 +4,11 @@ import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { LogOut, Mail, Settings, BarChart3 } from 'lucide-react';
+import { LogOut, Mail, Settings, BarChart3, Webhook } from 'lucide-react';
 import { EmailHistory } from '@/components/dashboard/EmailHistory';
 import { ApiConfiguration } from '@/components/dashboard/ApiConfiguration';
 import { EmailRules } from '@/components/dashboard/EmailRules';
+import { WebhookTester } from '@/components/dashboard/WebhookTester';
 
 const Dashboard = () => {
   const { user, loading, signOut } = useAuth();
@@ -44,7 +45,7 @@ const Dashboard = () => {
 
       <main className="container mx-auto px-4 py-8">
         <Tabs defaultValue="emails" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-3 lg:w-auto">
+          <TabsList className="grid w-full grid-cols-4 lg:w-auto">
             <TabsTrigger value="emails">
               <Mail className="mr-2 h-4 w-4" />
               Emails
@@ -56,6 +57,10 @@ const Dashboard = () => {
             <TabsTrigger value="config">
               <BarChart3 className="mr-2 h-4 w-4" />
               Configuration
+            </TabsTrigger>
+            <TabsTrigger value="webhooks">
+              <Webhook className="mr-2 h-4 w-4" />
+              Webhooks
             </TabsTrigger>
           </TabsList>
 
@@ -99,6 +104,10 @@ const Dashboard = () => {
                 <ApiConfiguration />
               </CardContent>
             </Card>
+          </TabsContent>
+
+          <TabsContent value="webhooks" className="space-y-4">
+            <WebhookTester />
           </TabsContent>
         </Tabs>
       </main>

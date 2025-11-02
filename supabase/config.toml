@@ -1,1 +1,16 @@
 project_id = "bqnzofttwsuxcucbyxov"
+
+[functions.email-processor]
+verify_jwt = false
+
+[functions.whatsapp-sender]
+verify_jwt = false
+
+[functions.gmail-actions]
+verify_jwt = false
+
+[functions.email-summary]
+verify_jwt = false
+
+[functions.sync-sheets-rules]
+verify_jwt = false
