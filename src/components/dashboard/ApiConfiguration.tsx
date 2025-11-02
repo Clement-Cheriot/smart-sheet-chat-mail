@@ -11,6 +11,7 @@ export const ApiConfiguration = () => {
   const [config, setConfig] = useState({
     whatsapp_api_token: '',
     whatsapp_phone_number_id: '',
+    whatsapp_recipient_number: '',
     google_sheets_id: '',
   });
   const [showTokens, setShowTokens] = useState(false);
@@ -29,14 +30,19 @@ export const ApiConfiguration = () => {
     try {
       const { data, error } = await supabase
         .from('user_api_configs')
-        .select('whatsapp_api_token, whatsapp_phone_number_id, google_sheets_id')
+        .select('whatsapp_api_token, whatsapp_phone_number_id, whatsapp_recipient_number, google_sheets_id')
         .eq('user_id', user?.id)
         .maybeSingle();
 
       if (error && error.code !== 'PGRST116') throw error;
       
       if (data) {
-        setConfig(data);
+        setConfig({
+          whatsapp_api_token: data.whatsapp_api_token || '',
+          whatsapp_phone_number_id: data.whatsapp_phone_number_id || '',
+          whatsapp_recipient_number: data.whatsapp_recipient_number || '',
+          google_sheets_id: data.google_sheets_id || '',
+        });
       }
     } catch (error) {
       console.error('Error loading config:', error);
@@ -108,6 +114,20 @@ export const ApiConfiguration = () => {
             placeholder="ID du numéro de téléphone"
             className="mt-2"
           />
+        </div>
+
+        <div>
+          <Label htmlFor="whatsapp-recipient">Numéro WhatsApp destinataire</Label>
+          <Input
+            id="whatsapp-recipient"
+            value={config.whatsapp_recipient_number}
+            onChange={(e) => setConfig({ ...config, whatsapp_recipient_number: e.target.value })}
+            placeholder="+33612345678"
+            className="mt-2"
+          />
+          <p className="text-xs text-muted-foreground mt-1">
+            Format international avec le +, ex: +33612345678
+          </p>
         </div>
 
         <div>

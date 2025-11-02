@@ -28,7 +28,7 @@ serve(async (req) => {
     // Get user's WhatsApp config
     const { data: config, error: configError } = await supabase
       .from('user_api_configs')
-      .select('whatsapp_api_token, whatsapp_phone_number_id')
+      .select('whatsapp_api_token, whatsapp_phone_number_id, whatsapp_recipient_number')
       .eq('user_id', userId)
       .single();
 
@@ -36,8 +36,8 @@ serve(async (req) => {
       throw new Error('WhatsApp configuration not found for user');
     }
 
-    if (!config.whatsapp_api_token || !config.whatsapp_phone_number_id) {
-      console.log('WhatsApp not configured, skipping notification');
+    if (!config.whatsapp_api_token || !config.whatsapp_phone_number_id || !config.whatsapp_recipient_number) {
+      console.log('WhatsApp not fully configured, skipping notification');
       return new Response(
         JSON.stringify({ success: false, reason: 'whatsapp_not_configured' }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -55,7 +55,7 @@ serve(async (req) => {
         },
         body: JSON.stringify({
           messaging_product: 'whatsapp',
-          to: config.whatsapp_phone_number_id, // Should be recipient's phone number
+          to: config.whatsapp_recipient_number,
           type: 'text',
           text: {
             body: message

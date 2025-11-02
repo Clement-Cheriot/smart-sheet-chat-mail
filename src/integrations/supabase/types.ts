@@ -174,6 +174,7 @@ export type Database = {
           user_id: string
           whatsapp_api_token: string | null
           whatsapp_phone_number_id: string | null
+          whatsapp_recipient_number: string | null
         }
         Insert: {
           created_at?: string
@@ -184,6 +185,7 @@ export type Database = {
           user_id: string
           whatsapp_api_token?: string | null
           whatsapp_phone_number_id?: string | null
+          whatsapp_recipient_number?: string | null
         }
         Update: {
           created_at?: string
@@ -194,6 +196,7 @@ export type Database = {
           user_id?: string
           whatsapp_api_token?: string | null
           whatsapp_phone_number_id?: string | null
+          whatsapp_recipient_number?: string | null
         }
         Relationships: []
       }
