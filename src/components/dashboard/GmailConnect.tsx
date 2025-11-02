@@ -13,19 +13,19 @@ export const GmailConnect = () => {
   useEffect(() => {
     checkGmailConnection();
     
-    // Listen for OAuth callback messages
-    const handleMessage = (event: MessageEvent) => {
-      if (event.data.type === 'gmail-auth-success') {
-        setIsConnected(true);
-        toast.success("Gmail connecté avec succès !");
-        checkGmailConnection();
-      } else if (event.data.type === 'gmail-auth-error') {
-        toast.error("Erreur de connexion Gmail");
-      }
-    };
-
-    window.addEventListener('message', handleMessage);
-    return () => window.removeEventListener('message', handleMessage);
+    // Check for OAuth success in URL params
+    const urlParams = new URLSearchParams(window.location.search);
+    const gmailSuccess = urlParams.get('gmail_success');
+    
+    if (gmailSuccess === 'true') {
+      setIsConnected(true);
+      toast.success("Gmail connecté avec succès !");
+      // Clean up URL
+      window.history.replaceState({}, '', '/dashboard');
+    } else if (gmailSuccess === 'false') {
+      toast.error("Erreur de connexion Gmail");
+      window.history.replaceState({}, '', '/dashboard');
+    }
   }, []);
 
   const checkGmailConnection = async () => {
@@ -70,17 +70,8 @@ export const GmailConnect = () => {
         return;
       }
 
-      // Open OAuth URL in popup
-      const width = 600;
-      const height = 700;
-      const left = window.screenX + (window.outerWidth - width) / 2;
-      const top = window.screenY + (window.outerHeight - height) / 2;
-      
-      window.open(
-        data.authUrl,
-        'Gmail Authorization',
-        `width=${width},height=${height},left=${left},top=${top}`
-      );
+      // Redirect directly to OAuth URL (no popup to avoid COOP issues)
+      window.location.href = data.authUrl;
     } catch (error) {
       console.error('Error connecting Gmail:', error);
       toast.error("Erreur lors de la connexion Gmail");

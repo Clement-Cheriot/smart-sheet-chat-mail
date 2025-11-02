@@ -90,35 +90,26 @@ serve(async (req) => {
 
     console.log('Gmail credentials saved successfully');
 
-    // Return success page that closes the popup
-    return new Response(
-      `<html>
-        <body>
-          <h1>Gmail connecté avec succès ! ✅</h1>
-          <p>Vous pouvez fermer cette fenêtre.</p>
-          <script>
-            window.opener?.postMessage({ type: 'gmail-auth-success' }, '*');
-            setTimeout(() => window.close(), 2000);
-          </script>
-        </body>
-      </html>`,
-      { headers: { 'Content-Type': 'text/html' } }
-    );
+    // Redirect back to dashboard with success parameter
+    const dashboardUrl = `${Deno.env.get('VITE_APP_URL') || 'https://23d8b18a-dadc-4393-ac5e-daf9605cdc3d.lovableproject.com'}/dashboard?gmail_success=true`;
+    
+    return new Response(null, {
+      status: 302,
+      headers: {
+        'Location': dashboardUrl,
+      },
+    });
   } catch (error) {
     console.error('Error in gmail-oauth-callback:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    return new Response(
-      `<html>
-        <body>
-          <h1>Erreur</h1>
-          <p>${errorMessage}</p>
-          <script>
-            window.opener?.postMessage({ type: 'gmail-auth-error', error: '${errorMessage}' }, '*');
-            setTimeout(() => window.close(), 3000);
-          </script>
-        </body>
-      </html>`,
-      { headers: { 'Content-Type': 'text/html' } }
-    );
+    
+    // Redirect back to dashboard with error parameter
+    const dashboardUrl = `${Deno.env.get('VITE_APP_URL') || 'https://23d8b18a-dadc-4393-ac5e-daf9605cdc3d.lovableproject.com'}/dashboard?gmail_success=false`;
+    
+    return new Response(null, {
+      status: 302,
+      headers: {
+        'Location': dashboardUrl,
+      },
+    });
   }
 });
