@@ -14,16 +14,225 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      activity_logs: {
+        Row: {
+          action_details: Json | null
+          action_type: string
+          created_at: string
+          error_message: string | null
+          id: string
+          status: string
+          user_id: string | null
+        }
+        Insert: {
+          action_details?: Json | null
+          action_type: string
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          status: string
+          user_id?: string | null
+        }
+        Update: {
+          action_details?: Json | null
+          action_type?: string
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          status?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      email_history: {
+        Row: {
+          ai_analysis: Json | null
+          applied_label: string | null
+          created_at: string
+          draft_created: boolean | null
+          draft_id: string | null
+          gmail_message_id: string
+          id: string
+          priority_score: number | null
+          processed_at: string
+          received_at: string
+          sender: string
+          subject: string | null
+          user_id: string
+          whatsapp_notified: boolean | null
+        }
+        Insert: {
+          ai_analysis?: Json | null
+          applied_label?: string | null
+          created_at?: string
+          draft_created?: boolean | null
+          draft_id?: string | null
+          gmail_message_id: string
+          id?: string
+          priority_score?: number | null
+          processed_at?: string
+          received_at: string
+          sender: string
+          subject?: string | null
+          user_id: string
+          whatsapp_notified?: boolean | null
+        }
+        Update: {
+          ai_analysis?: Json | null
+          applied_label?: string | null
+          created_at?: string
+          draft_created?: boolean | null
+          draft_id?: string | null
+          gmail_message_id?: string
+          id?: string
+          priority_score?: number | null
+          processed_at?: string
+          received_at?: string
+          sender?: string
+          subject?: string | null
+          user_id?: string
+          whatsapp_notified?: boolean | null
+        }
+        Relationships: []
+      }
+      email_rules: {
+        Row: {
+          auto_action: string | null
+          created_at: string
+          id: string
+          is_active: boolean
+          keywords: string[] | null
+          label_to_apply: string
+          priority: string | null
+          response_template: string | null
+          rule_order: number
+          sender_pattern: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          auto_action?: string | null
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          keywords?: string[] | null
+          label_to_apply: string
+          priority?: string | null
+          response_template?: string | null
+          rule_order?: number
+          sender_pattern?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          auto_action?: string | null
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          keywords?: string[] | null
+          label_to_apply?: string
+          priority?: string | null
+          response_template?: string | null
+          rule_order?: number
+          sender_pattern?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          avatar_url: string | null
+          created_at: string
+          full_name: string | null
+          id: string
+          updated_at: string
+        }
+        Insert: {
+          avatar_url?: string | null
+          created_at?: string
+          full_name?: string | null
+          id: string
+          updated_at?: string
+        }
+        Update: {
+          avatar_url?: string | null
+          created_at?: string
+          full_name?: string | null
+          id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      user_api_configs: {
+        Row: {
+          created_at: string
+          gmail_credentials: Json | null
+          google_sheets_id: string | null
+          id: string
+          updated_at: string
+          user_id: string
+          whatsapp_api_token: string | null
+          whatsapp_phone_number_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          gmail_credentials?: Json | null
+          google_sheets_id?: string | null
+          id?: string
+          updated_at?: string
+          user_id: string
+          whatsapp_api_token?: string | null
+          whatsapp_phone_number_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          gmail_credentials?: Json | null
+          google_sheets_id?: string | null
+          id?: string
+          updated_at?: string
+          user_id?: string
+          whatsapp_api_token?: string | null
+          whatsapp_phone_number_id?: string | null
+        }
+        Relationships: []
+      }
+      user_roles: {
+        Row: {
+          created_at: string
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
     }
     Enums: {
-      [_ in never]: never
+      app_role: "admin" | "user"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +359,8 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      app_role: ["admin", "user"],
+    },
   },
 } as const
