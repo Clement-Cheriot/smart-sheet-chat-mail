@@ -9,6 +9,7 @@ import { EmailHistory } from '@/components/dashboard/EmailHistory';
 import { ApiConfiguration } from '@/components/dashboard/ApiConfiguration';
 import { EmailRules } from '@/components/dashboard/EmailRules';
 import { WebhookTester } from '@/components/dashboard/WebhookTester';
+import { GmailConnect } from '@/components/dashboard/GmailConnect';
 
 const Dashboard = () => {
   const { user, loading, signOut } = useAuth();
@@ -93,6 +94,7 @@ const Dashboard = () => {
           </TabsContent>
 
           <TabsContent value="config" className="space-y-4">
+            <GmailConnect />
             <Card>
               <CardHeader>
                 <CardTitle>Configuration API</CardTitle>
