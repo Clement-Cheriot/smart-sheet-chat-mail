@@ -15,6 +15,10 @@ interface Rule {
   label_to_apply: string;
   priority: string;
   is_active: boolean;
+  create_draft: boolean;
+  auto_reply: boolean;
+  exclude_newsletters: boolean;
+  exclude_marketing: boolean;
 }
 
 export const EmailRules = () => {
@@ -85,6 +89,10 @@ export const EmailRules = () => {
         enables: true,
         domaines: 'binance.com,bitget.com,coinbase.com',
         keywords: 'liquidation,margin,withdraw',
+        create_draft: false,
+        auto_reply: false,
+        exclude_newsletters: true,
+        exclude_marketing: true,
         description: 'Alertes trading urgentes'
       },
       {
@@ -94,6 +102,10 @@ export const EmailRules = () => {
         enables: true,
         domaines: 'newsletter.com,marketing.com',
         keywords: 'newsletter,abonnement',
+        create_draft: false,
+        auto_reply: false,
+        exclude_newsletters: true,
+        exclude_marketing: true,
         description: 'Newsletters marketing'
       }
     ];
@@ -111,6 +123,10 @@ export const EmailRules = () => {
       { wch: 10 }, // enables
       { wch: 40 }, // domaines
       { wch: 40 }, // keywords
+      { wch: 15 }, // create_draft
+      { wch: 15 }, // auto_reply
+      { wch: 20 }, // exclude_newsletters
+      { wch: 20 }, // exclude_marketing
       { wch: 30 }  // description
     ];
 
@@ -134,7 +150,7 @@ export const EmailRules = () => {
       const worksheet = workbook.Sheets[workbook.SheetNames[0]];
       const jsonData = XLSX.utils.sheet_to_json(worksheet);
 
-      // Format: rule_id, classification, priority, enables, domaines, keywords, description
+      // Format: rule_id, classification, priority, enables, domaines, keywords, create_draft, auto_reply, exclude_newsletters, exclude_marketing, description
       const newRules = jsonData.map((row: any, index: number) => {
         // Parse domaines (comma-separated string)
         const domains = row.domaines ? row.domaines.split(',').map((d: string) => d.trim()).filter(Boolean) : [];
@@ -155,8 +171,11 @@ export const EmailRules = () => {
           keywords: keywords,
           label_to_apply: row.classification || 'Imported',
           priority: row.priority?.toLowerCase() || 'medium',
-          auto_action: null, // L'IA décide
           is_active: row.enables === true || row.enables === 'true' || row.enables === 1,
+          create_draft: row.create_draft === true || row.create_draft === 'true' || row.create_draft === 1,
+          auto_reply: row.auto_reply === true || row.auto_reply === 'true' || row.auto_reply === 1,
+          exclude_newsletters: row.exclude_newsletters !== false && row.exclude_newsletters !== 'false' && row.exclude_newsletters !== 0,
+          exclude_marketing: row.exclude_marketing !== false && row.exclude_marketing !== 'false' && row.exclude_marketing !== 0,
           rule_order: index,
         };
       });
@@ -313,13 +332,23 @@ export const EmailRules = () => {
             >
               <div className="flex items-start justify-between gap-4">
                 <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-2">
+                  <div className="flex items-center gap-2 mb-2 flex-wrap">
                     <Badge variant={rule.is_active ? 'default' : 'secondary'}>
                       {rule.is_active ? 'Active' : 'Inactive'}
                     </Badge>
                     <Badge variant={getPriorityColor(rule.priority)}>
                       {rule.priority}
                     </Badge>
+                    {rule.create_draft && (
+                      <Badge variant="outline" className="text-blue-600 border-blue-600">
+                        Brouillon
+                      </Badge>
+                    )}
+                    {rule.auto_reply && (
+                      <Badge variant="outline" className="text-green-600 border-green-600">
+                        Réponse auto
+                      </Badge>
+                    )}
                   </div>
                   <p className="font-medium mb-1">
                     Expéditeur : {rule.sender_pattern || 'Tous'}
@@ -329,9 +358,17 @@ export const EmailRules = () => {
                       Mots-clés : {rule.keywords.join(', ')}
                     </p>
                   )}
-                  <p className="text-sm">
+                  <p className="text-sm mb-1">
                     Label : <span className="font-medium">{rule.label_to_apply}</span>
                   </p>
+                  {(rule.exclude_newsletters || rule.exclude_marketing) && (
+                    <p className="text-xs text-muted-foreground">
+                      Exclusions : {[
+                        rule.exclude_newsletters && 'Newsletters',
+                        rule.exclude_marketing && 'Marketing'
+                      ].filter(Boolean).join(', ')}
+                    </p>
+                  )}
                 </div>
                 <div className="flex gap-2">
                   <Button

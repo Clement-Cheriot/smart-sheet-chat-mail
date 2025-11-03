@@ -50,9 +50,9 @@ serve(async (req) => {
 
     const processedIds = new Set(processedEmails?.map(e => e.gmail_message_id) || []);
 
-    // Fetch recent messages from Gmail since last sync
+    // Fetch recent messages from Gmail since last sync (inbox only, exclude drafts and spam)
     const afterEpoch = Math.floor(new Date(lastSyncedAt).getTime() / 1000);
-    const gmailUrl = `https://gmail.googleapis.com/gmail/v1/users/me/messages?q=after:${afterEpoch}&maxResults=50`;
+    const gmailUrl = `https://gmail.googleapis.com/gmail/v1/users/me/messages?q=in:inbox -in:drafts -in:spam after:${afterEpoch}&maxResults=50`;
 
     let response = await fetch(gmailUrl, {
       headers: { 'Authorization': `Bearer ${accessToken}` },

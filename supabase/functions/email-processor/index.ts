@@ -73,9 +73,24 @@ serve(async (req) => {
     // Calculate priority score
     const priorityScore = calculatePriorityScore(aiAnalysis, appliedRule);
 
+    // Determine if we should create a draft
+    // Skip draft creation for newsletters/marketing if rule excludes them
+    let shouldCreateDraft = false;
+    if (appliedRule?.create_draft) {
+      const isNewsletter = aiAnalysis.category === 'newsletter' || appliedLabel?.toLowerCase().includes('newsletter');
+      const isMarketing = aiAnalysis.category === 'marketing' || emailData.sender.toLowerCase().includes('marketing');
+      
+      if (isNewsletter && appliedRule.exclude_newsletters) {
+        console.log('Skipping draft creation: newsletter excluded by rule');
+      } else if (isMarketing && appliedRule.exclude_marketing) {
+        console.log('Skipping draft creation: marketing excluded by rule');
+      } else {
+        shouldCreateDraft = true;
+      }
+    }
+
     // Determine actions taken
     const actionsTaken = [];
-    let shouldCreateDraft = appliedRule?.auto_action === 'create_draft';
     
     if (appliedLabel) actionsTaken.push({ type: 'label', value: appliedLabel });
     if (!appliedLabel && !shouldCreateDraft) {

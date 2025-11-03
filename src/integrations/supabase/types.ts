@@ -119,7 +119,11 @@ export type Database = {
       email_rules: {
         Row: {
           auto_action: string | null
+          auto_reply: boolean | null
+          create_draft: boolean | null
           created_at: string
+          exclude_marketing: boolean | null
+          exclude_newsletters: boolean | null
           id: string
           is_active: boolean
           keywords: string[] | null
@@ -133,7 +137,11 @@ export type Database = {
         }
         Insert: {
           auto_action?: string | null
+          auto_reply?: boolean | null
+          create_draft?: boolean | null
           created_at?: string
+          exclude_marketing?: boolean | null
+          exclude_newsletters?: boolean | null
           id?: string
           is_active?: boolean
           keywords?: string[] | null
@@ -147,7 +155,11 @@ export type Database = {
         }
         Update: {
           auto_action?: string | null
+          auto_reply?: boolean | null
+          create_draft?: boolean | null
           created_at?: string
+          exclude_marketing?: boolean | null
+          exclude_newsletters?: boolean | null
           id?: string
           is_active?: boolean
           keywords?: string[] | null
