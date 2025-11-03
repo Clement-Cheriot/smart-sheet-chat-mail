@@ -28,6 +28,7 @@ export const EmailRules = () => {
   const [loading, setLoading] = useState(true);
   const [importing, setImporting] = useState(false);
   const [editingRule, setEditingRule] = useState<Rule | null>(null);
+  const [activeTab, setActiveTab] = useState<'label' | 'draft' | 'auto-reply' | 'notification'>('label');
   const { user } = useAuth();
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -464,8 +465,6 @@ export const EmailRules = () => {
   const draftRules = rules.filter(r => r.create_draft);
   const autoReplyRules = rules.filter(r => r.auto_reply);
   const notificationRules = rules.filter(r => r.notify_urgent);
-
-  const [activeTab, setActiveTab] = useState<'label' | 'draft' | 'auto-reply' | 'notification'>('label');
 
   const getCurrentRules = () => {
     switch (activeTab) {
