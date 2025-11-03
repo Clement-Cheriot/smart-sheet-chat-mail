@@ -8,7 +8,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import { toast } from '@/hooks/use-toast';
 import { formatDistanceToNow } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { Mail, Tag, Clock, ChevronDown, Check, X, Lightbulb, Brain, Calendar, MessageSquare } from 'lucide-react';
+import { Mail, Tag, Clock, ChevronDown, Check, X, Lightbulb, Brain, Calendar, MessageSquare, Trash } from 'lucide-react';
 
 interface EmailRecord {
   id: string;
@@ -102,6 +102,27 @@ export const EmailHistory = () => {
     }
   };
 
+  const clearAllEmails = async () => {
+    if (!confirm('Êtes-vous sûr de vouloir supprimer tout l\'historique des emails ?')) return;
+    
+    try {
+      const { error } = await supabase
+        .from('email_history')
+        .delete()
+        .eq('user_id', user?.id);
+
+      if (error) throw error;
+
+      setEmails([]);
+      toast({
+        title: 'Historique vidé',
+        description: 'Tous les emails ont été supprimés',
+      });
+    } catch (error: any) {
+      toast({ title: 'Erreur', description: error.message, variant: 'destructive' });
+    }
+  };
+
   const getPriorityColor = (score: number): "default" | "destructive" | "outline" | "secondary" => {
     if (score >= 7) return 'destructive';
     if (score >= 4) return 'default';
@@ -137,6 +158,14 @@ export const EmailHistory = () => {
 
   return (
     <div className="space-y-4">
+      {emails.length > 0 && (
+        <div className="flex justify-end">
+          <Button variant="outline" onClick={clearAllEmails}>
+            <Trash className="mr-2 h-4 w-4" />
+            Vider l'historique
+          </Button>
+        </div>
+      )}
       {emails.map((email) => (
         <Card key={email.id}>
           <Collapsible>

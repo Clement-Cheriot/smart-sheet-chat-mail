@@ -4,7 +4,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
-import { Plus, Trash2, Edit, Upload, Download } from 'lucide-react';
+import { Plus, Trash2, Edit, Upload, Download, Power, Trash } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
 interface Rule {
@@ -81,7 +81,8 @@ export const EmailRules = () => {
         classification: 'Trading Urgent',
         priority: 'high',
         enables: true,
-        conditions: '{"domains":["binance.com","bitget.com","coinbase.com"],"keywords":["liquidation","margin","withdraw"]}',
+        domaines: 'binance.com,bitget.com,coinbase.com',
+        keywords: 'liquidation,margin,withdraw',
         description: 'Alertes trading urgentes'
       },
       {
@@ -89,7 +90,8 @@ export const EmailRules = () => {
         classification: 'Newsletter',
         priority: 'low',
         enables: true,
-        conditions: '{"domains":["newsletter.com","marketing.com"],"keywords":["newsletter","abonnement"]}',
+        domaines: 'newsletter.com,marketing.com',
+        keywords: 'newsletter,abonnement',
         description: 'Newsletters marketing'
       }
     ];
@@ -105,7 +107,8 @@ export const EmailRules = () => {
       { wch: 20 }, // classification
       { wch: 10 }, // priority
       { wch: 10 }, // enables
-      { wch: 60 }, // conditions
+      { wch: 40 }, // domaines
+      { wch: 40 }, // keywords
       { wch: 30 }  // description
     ];
 
@@ -129,26 +132,25 @@ export const EmailRules = () => {
       const worksheet = workbook.Sheets[workbook.SheetNames[0]];
       const jsonData = XLSX.utils.sheet_to_json(worksheet);
 
-      // Format: rule_id, classification, priority, enables, conditions, description
+      // Format: rule_id, classification, priority, enables, domaines, keywords, description
       const newRules = jsonData.map((row: any, index: number) => {
-        let conditions: any = {};
-        try {
-          conditions = typeof row.conditions === 'string' ? JSON.parse(row.conditions) : row.conditions || {};
-        } catch (e) {
-          console.error('Error parsing conditions for row:', row, e);
-        }
+        // Parse domaines (comma-separated string)
+        const domains = row.domaines ? row.domaines.split(',').map((d: string) => d.trim()).filter(Boolean) : [];
+        
+        // Parse keywords (comma-separated string)
+        const keywords = row.keywords ? row.keywords.split(',').map((k: string) => k.trim()).filter(Boolean) : [];
 
-        // Convert domains array to sender_pattern regex
+        // Convert domains to sender_pattern regex
         let senderPattern = null;
-        if (conditions.domains && conditions.domains.length > 0) {
-          const domainsPattern = conditions.domains.map((d: string) => d.replace('.', '\\.')).join('|');
+        if (domains.length > 0) {
+          const domainsPattern = domains.map((d: string) => d.replace(/\./g, '\\.')).join('|');
           senderPattern = `.*@(${domainsPattern})`;
         }
 
         return {
           user_id: user?.id,
           sender_pattern: senderPattern,
-          keywords: conditions.keywords || [],
+          keywords: keywords,
           label_to_apply: row.classification || 'Imported',
           priority: row.priority?.toLowerCase() || 'medium',
           auto_action: null, // L'IA décide
@@ -179,6 +181,56 @@ export const EmailRules = () => {
     } finally {
       setImporting(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  const deleteRule = async (ruleId: string) => {
+    if (!confirm('Êtes-vous sûr de vouloir supprimer cette règle ?')) return;
+    
+    try {
+      const { error } = await supabase
+        .from('email_rules')
+        .delete()
+        .eq('id', ruleId);
+
+      if (error) throw error;
+
+      setRules(rules.filter(r => r.id !== ruleId));
+      toast({
+        title: 'Règle supprimée',
+        description: 'La règle a été supprimée avec succès',
+      });
+    } catch (error: any) {
+      toast({
+        title: 'Erreur',
+        description: error.message,
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const clearAllRules = async () => {
+    if (!confirm('Êtes-vous sûr de vouloir supprimer toutes les règles ?')) return;
+    
+    try {
+      const { error } = await supabase
+        .from('email_rules')
+        .delete()
+        .eq('user_id', user?.id);
+
+      if (error) throw error;
+
+      setRules([]);
+      toast({
+        title: 'Règles supprimées',
+        description: 'Toutes les règles ont été supprimées',
+      });
+    } catch (error: any) {
+      toast({
+        title: 'Erreur',
+        description: error.message,
+        variant: 'destructive',
+      });
     }
   };
 
@@ -226,7 +278,16 @@ export const EmailRules = () => {
             <Upload className="mr-2 h-4 w-4" />
             {importing ? 'Import...' : 'Importer'}
           </Button>
-          <Button>
+          {rules.length > 0 && (
+            <Button 
+              variant="outline" 
+              onClick={clearAllRules}
+            >
+              <Trash className="mr-2 h-4 w-4" />
+              Vider les règles
+            </Button>
+          )}
+          <Button onClick={() => toast({ title: 'Fonctionnalité en cours de développement' })}>
             <Plus className="mr-2 h-4 w-4" />
             Nouvelle règle
           </Button>
@@ -236,7 +297,7 @@ export const EmailRules = () => {
       {rules.length === 0 ? (
         <div className="text-center py-12 border-2 border-dashed rounded-lg">
           <p className="text-muted-foreground mb-4">Aucune règle configurée</p>
-          <Button>
+          <Button onClick={() => toast({ title: 'Fonctionnalité en cours de développement' })}>
             <Plus className="mr-2 h-4 w-4" />
             Créer ma première règle
           </Button>
@@ -275,12 +336,23 @@ export const EmailRules = () => {
                     variant="outline"
                     size="icon"
                     onClick={() => toggleRule(rule.id, rule.is_active)}
+                    title={rule.is_active ? 'Désactiver' : 'Activer'}
+                  >
+                    <Power className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={() => toast({ title: 'Fonctionnalité en cours de développement' })}
+                    title="Modifier"
                   >
                     <Edit className="h-4 w-4" />
                   </Button>
                   <Button
                     variant="outline"
                     size="icon"
+                    onClick={() => deleteRule(rule.id)}
+                    title="Supprimer"
                   >
                     <Trash2 className="h-4 w-4" />
                   </Button>
