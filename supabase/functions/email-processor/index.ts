@@ -73,7 +73,23 @@ serve(async (req) => {
     // Calculate priority score
     const priorityScore = calculatePriorityScore(aiAnalysis, appliedRule);
 
-    // Save to email history
+    // Determine actions taken
+    const actionsTaken = [];
+    let shouldCreateDraft = appliedRule?.auto_action === 'create_draft';
+    
+    if (appliedLabel) actionsTaken.push({ type: 'label', value: appliedLabel });
+    if (!appliedLabel && !shouldCreateDraft) {
+      actionsTaken.push({ type: 'manual_review', value: 'Needs Manual Review' });
+      appliedLabel = 'Needs Manual Review';
+    }
+
+    // Determine rule reinforcement suggestion
+    let ruleReinforcement = null;
+    if (appliedRule && aiAnalysis.suggested_label && aiAnalysis.suggested_label !== appliedLabel) {
+      ruleReinforcement = `Consider adding rule for label "${aiAnalysis.suggested_label}" based on similar patterns`;
+    }
+
+    // Save to email history with enriched data
     const { data: historyRecord, error: historyError } = await supabase
       .from('email_history')
       .insert({
@@ -85,6 +101,12 @@ serve(async (req) => {
         applied_label: appliedLabel,
         priority_score: priorityScore,
         ai_analysis: aiAnalysis,
+        draft_created: false,
+        body_summary: aiAnalysis.body_summary || emailData.body?.substring(0, 200),
+        ai_reasoning: aiAnalysis.reasoning,
+        suggested_new_label: aiAnalysis.suggested_label,
+        rule_reinforcement_suggestion: ruleReinforcement,
+        actions_taken: actionsTaken,
       })
       .select()
       .single();
@@ -106,7 +128,8 @@ serve(async (req) => {
     }
 
     // Generate draft if needed
-    if (appliedRule?.auto_action === 'create_draft') {
+    let draftResult = null;
+    if (shouldCreateDraft) {
       console.log('Generating draft response');
       const { data: draftData } = await supabase.functions.invoke('gmail-actions', {
         body: {
@@ -123,23 +146,47 @@ serve(async (req) => {
       });
 
       if (draftData?.draftId) {
+        draftResult = draftData;
         await supabase
           .from('email_history')
-          .update({ draft_created: true, draft_id: draftData.draftId })
+          .update({ 
+            draft_created: true, 
+            draft_id: draftData.draftId,
+            actions_taken: [...actionsTaken, { type: 'draft_created', value: true }]
+          })
           .eq('id', historyRecord.id);
       }
     }
 
-    // Send WhatsApp notification if high priority
-    if (priorityScore >= 7) {
+    // Update actions for calendar if needed
+    if (aiAnalysis.needs_calendar_action) {
+      await supabase
+        .from('email_history')
+        .update({ 
+          actions_taken: [...actionsTaken, { type: 'calendar_needed', value: true }]
+        })
+        .eq('id', historyRecord.id);
+    }
+
+    // Send WhatsApp notification if high priority OR AI says it's urgent
+    if (priorityScore >= 8 || aiAnalysis.is_urgent_whatsapp) {
       console.log('Sending WhatsApp notification');
       await supabase.functions.invoke('whatsapp-sender', {
         body: {
           userId: emailData.userId,
           type: 'alert',
-          message: `🚨 Email urgent de ${emailData.sender}\n\n${emailData.subject}\n\nPriorité: ${priorityScore}/10`,
+          message: `🚨 Email urgent !\nDe: ${emailData.sender}\nSujet: ${emailData.subject}\nPriorité: ${priorityScore}/10\n\nRésumé: ${aiAnalysis.body_summary}`,
         }
       });
+
+      // Mark as WhatsApp sent
+      await supabase
+        .from('email_history')
+        .update({ 
+          whatsapp_notified: true,
+          actions_taken: [...actionsTaken, { type: 'whatsapp_urgent', value: true }]
+        })
+        .eq('id', historyRecord.id);
     }
 
     // Log success
@@ -177,23 +224,31 @@ serve(async (req) => {
   }
 });
 
-async function analyzeEmailWithAI(sender: string, subject: string, body: string, apiKey: string) {
-  const prompt = `Analyse cet email et fournis une réponse JSON structurée:
-
-Expéditeur: ${sender}
-Sujet: ${subject}
-Corps: ${body.substring(0, 500)}...
-
-Fournis:
-1. sentiment (positive/neutral/negative)
-2. urgency (low/medium/high)
-3. category (commercial/important/notification/spam)
-4. keyEntities (array of important entities mentioned)
-5. suggestedAction (string - action recommandée)
-
-Réponds UNIQUEMENT avec un objet JSON valide.`;
-
+async function analyzeEmailWithAI(
+  sender: string,
+  subject: string,
+  body: string,
+  apiKey: string
+): Promise<any> {
   try {
+    const prompt = `Analyze this email and provide detailed structured information:
+
+From: ${sender}
+Subject: ${subject}
+Body: ${body.substring(0, 1000)}
+
+Provide a JSON response with:
+1. sentiment: positive/neutral/negative
+2. urgency: 1-10 scale
+3. category: work/personal/newsletter/spam/billing/support/other
+4. key_entities: array of important names, dates, amounts mentioned
+5. suggested_action: reply/forward/archive/review/urgent_response
+6. body_summary: Brief 2-3 sentence summary of the email content
+7. reasoning: Explain your analysis and why you chose these classifications
+8. suggested_label: If this doesn't fit existing categories, suggest a new label name
+9. needs_calendar_action: boolean - does this mention a meeting/event that should be calendared?
+10. is_urgent_whatsapp: boolean - is this urgent enough to warrant immediate WhatsApp notification?`;
+
     const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -203,11 +258,14 @@ Réponds UNIQUEMENT avec un objet JSON valide.`;
       body: JSON.stringify({
         model: 'google/gemini-2.5-flash',
         messages: [
-          { 
-            role: 'system', 
-            content: 'Tu es un assistant IA spécialisé dans l\'analyse d\'emails. Réponds toujours avec du JSON valide.' 
+          {
+            role: 'system',
+            content: 'You are an email analysis assistant. Always respond with valid JSON.',
           },
-          { role: 'user', content: prompt }
+          {
+            role: 'user',
+            content: prompt,
+          },
         ],
         temperature: 0.3,
       }),
@@ -218,29 +276,33 @@ Réponds UNIQUEMENT avec un objet JSON valide.`;
     }
 
     const data = await response.json();
-    const content = data.choices[0].message.content;
-    
-    // Parse JSON from AI response
+    const content = data.choices[0]?.message?.content;
+
+    if (!content) {
+      throw new Error('No response from AI');
+    }
+
+    // Try to parse JSON from the response
     const jsonMatch = content.match(/\{[\s\S]*\}/);
     if (jsonMatch) {
       return JSON.parse(jsonMatch[0]);
     }
-    
-    return {
-      sentiment: 'neutral',
-      urgency: 'medium',
-      category: 'notification',
-      keyEntities: [],
-      suggestedAction: 'review'
-    };
+
+    throw new Error('Could not parse AI response as JSON');
   } catch (error) {
     console.error('AI analysis error:', error);
+    // Return default analysis
     return {
       sentiment: 'neutral',
-      urgency: 'medium',
-      category: 'notification',
-      keyEntities: [],
-      suggestedAction: 'review'
+      urgency: 5,
+      category: 'general',
+      key_entities: [],
+      suggested_action: 'review',
+      body_summary: body.substring(0, 200),
+      reasoning: 'AI analysis unavailable, using defaults',
+      suggested_label: null,
+      needs_calendar_action: false,
+      is_urgent_whatsapp: false,
     };
   }
 }

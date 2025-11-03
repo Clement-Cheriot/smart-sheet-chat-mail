@@ -2,9 +2,13 @@ import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { toast } from '@/hooks/use-toast';
 import { formatDistanceToNow } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { Mail, Tag, Clock } from 'lucide-react';
+import { Mail, Tag, Clock, ChevronDown, Check, X, Lightbulb, Brain, Calendar, MessageSquare } from 'lucide-react';
 
 interface EmailRecord {
   id: string;
@@ -14,6 +18,13 @@ interface EmailRecord {
   applied_label: string;
   priority_score: number;
   draft_created: boolean;
+  body_summary: string | null;
+  ai_reasoning: string | null;
+  suggested_new_label: string | null;
+  rule_reinforcement_suggestion: string | null;
+  actions_taken: any[];
+  label_validation_status: string;
+  rule_reinforcement_status: string;
 }
 
 export const EmailHistory = () => {
@@ -31,17 +42,63 @@ export const EmailHistory = () => {
     try {
       const { data, error } = await supabase
         .from('email_history')
-        .select('id, sender, subject, received_at, applied_label, priority_score, draft_created')
+        .select('*')
         .eq('user_id', user?.id)
         .order('received_at', { ascending: false })
         .limit(50);
 
       if (error) throw error;
-      setEmails(data || []);
+      setEmails((data || []) as any);
     } catch (error) {
       console.error('Error loading emails:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const validateLabel = async (emailId: string, accepted: boolean) => {
+    try {
+      const { error } = await supabase
+        .from('email_history')
+        .update({ label_validation_status: accepted ? 'accepted' : 'rejected' })
+        .eq('id', emailId);
+
+      if (error) throw error;
+
+      setEmails(emails.map(e => 
+        e.id === emailId ? { ...e, label_validation_status: accepted ? 'accepted' : 'rejected' } : e
+      ));
+
+      toast({ 
+        title: 'Succès', 
+        description: accepted ? 'Label validé' : 'Label rejeté' 
+      });
+    } catch (error) {
+      console.error('Error validating label:', error);
+      toast({ title: 'Erreur', description: 'Impossible de valider', variant: 'destructive' });
+    }
+  };
+
+  const validateRuleReinforcement = async (emailId: string, accepted: boolean) => {
+    try {
+      const { error } = await supabase
+        .from('email_history')
+        .update({ rule_reinforcement_status: accepted ? 'accepted' : 'rejected' })
+        .eq('id', emailId);
+
+      if (error) throw error;
+
+      setEmails(emails.map(e => 
+        e.id === emailId ? { ...e, rule_reinforcement_status: accepted ? 'accepted' : 'rejected' } : e
+      ));
+
+      toast({ 
+        title: 'Succès', 
+        description: accepted ? 'Suggestion acceptée' : 'Suggestion rejetée' 
+      });
+    } catch (error) {
+      console.error('Error validating rule:', error);
+      toast({ title: 'Erreur', description: 'Impossible de valider', variant: 'destructive' });
     }
   };
 
@@ -67,50 +124,174 @@ export const EmailHistory = () => {
     );
   }
 
+  const getActionIcon = (actionType: string) => {
+    switch (actionType) {
+      case 'label': return <Tag className="h-3 w-3" />;
+      case 'draft_created': return <Mail className="h-3 w-3" />;
+      case 'manual_review': return <Brain className="h-3 w-3" />;
+      case 'calendar_needed': return <Calendar className="h-3 w-3" />;
+      case 'whatsapp_urgent': return <MessageSquare className="h-3 w-3" />;
+      default: return null;
+    }
+  };
+
   return (
     <div className="space-y-4">
       {emails.map((email) => (
-        <div
-          key={email.id}
-          className="p-4 border rounded-lg hover:bg-accent/50 transition-colors"
-        >
-          <div className="flex items-start justify-between gap-4">
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 mb-1">
-                <Mail className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                <p className="font-medium truncate">{email.sender}</p>
+        <Card key={email.id}>
+          <Collapsible>
+            <CardHeader className="pb-3">
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-1">
+                    <Mail className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                    <p className="font-medium truncate">{email.sender}</p>
+                  </div>
+                  <CardTitle className="text-sm font-medium mb-1">
+                    {email.subject || 'Sans objet'}
+                  </CardTitle>
+                  {email.body_summary && (
+                    <CardDescription className="text-xs line-clamp-2">
+                      {email.body_summary}
+                    </CardDescription>
+                  )}
+                </div>
+                <div className="text-right flex-shrink-0">
+                  <div className="flex items-center gap-1 text-xs text-muted-foreground mb-2">
+                    <Clock className="h-3 w-3" />
+                    {formatDistanceToNow(new Date(email.received_at), {
+                      addSuffix: true,
+                      locale: fr,
+                    })}
+                  </div>
+                  {email.priority_score && (
+                    <Badge variant={getPriorityColor(email.priority_score)} className="text-xs">
+                      Priorité {email.priority_score}/10
+                    </Badge>
+                  )}
+                </div>
               </div>
-              <p className="text-sm text-muted-foreground truncate mb-2">
-                {email.subject || 'Sans objet'}
-              </p>
-              <div className="flex items-center gap-2 flex-wrap">
+
+              <div className="flex items-center gap-2 flex-wrap mt-2">
                 {email.applied_label && (
-                  <Badge variant="outline">
+                  <Badge variant="outline" className="text-xs">
                     <Tag className="h-3 w-3 mr-1" />
                     {email.applied_label}
                   </Badge>
                 )}
-                {email.priority_score && (
-                  <Badge variant={getPriorityColor(email.priority_score)}>
-                    Priorité {email.priority_score}/10
+                {email.actions_taken?.map((action: any, idx: number) => (
+                  <Badge key={idx} variant="secondary" className="text-xs">
+                    {getActionIcon(action.type)}
+                    <span className="ml-1">
+                      {action.type === 'label' && `Label: ${action.value}`}
+                      {action.type === 'draft_created' && 'Brouillon créé'}
+                      {action.type === 'manual_review' && 'Revue manuelle'}
+                      {action.type === 'calendar_needed' && 'Calendrier'}
+                      {action.type === 'whatsapp_urgent' && 'WhatsApp envoyé'}
+                    </span>
                   </Badge>
-                )}
-                {email.draft_created && (
-                  <Badge variant="secondary">Brouillon créé</Badge>
-                )}
+                ))}
               </div>
-            </div>
-            <div className="text-right flex-shrink-0">
-              <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                <Clock className="h-3 w-3" />
-                {formatDistanceToNow(new Date(email.received_at), {
-                  addSuffix: true,
-                  locale: fr,
-                })}
-              </div>
-            </div>
-          </div>
-        </div>
+            </CardHeader>
+
+            <CollapsibleTrigger asChild>
+              <Button variant="ghost" size="sm" className="w-full">
+                <ChevronDown className="h-4 w-4 mr-2" />
+                Voir les détails
+              </Button>
+            </CollapsibleTrigger>
+
+            <CollapsibleContent>
+              <CardContent className="pt-4 space-y-4 border-t">
+                {email.ai_reasoning && (
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2 text-sm font-medium">
+                      <Brain className="h-4 w-4" />
+                      Raisonnement de l'IA
+                    </div>
+                    <p className="text-sm text-muted-foreground pl-6">{email.ai_reasoning}</p>
+                  </div>
+                )}
+
+                {email.suggested_new_label && (
+                  <div className="space-y-2 p-3 bg-accent/50 rounded-lg">
+                    <div className="flex items-center gap-2 text-sm font-medium">
+                      <Lightbulb className="h-4 w-4 text-yellow-500" />
+                      Suggestion de nouveau label
+                    </div>
+                    <div className="flex items-center justify-between pl-6">
+                      <p className="text-sm">{email.suggested_new_label}</p>
+                      {email.label_validation_status === 'pending' && (
+                        <div className="flex gap-2">
+                          <Button 
+                            size="sm" 
+                            variant="outline"
+                            onClick={() => validateLabel(email.id, true)}
+                          >
+                            <Check className="h-3 w-3 mr-1" />
+                            Accepter
+                          </Button>
+                          <Button 
+                            size="sm" 
+                            variant="outline"
+                            onClick={() => validateLabel(email.id, false)}
+                          >
+                            <X className="h-3 w-3 mr-1" />
+                            Refuser
+                          </Button>
+                        </div>
+                      )}
+                      {email.label_validation_status === 'accepted' && (
+                        <Badge variant="default">Accepté</Badge>
+                      )}
+                      {email.label_validation_status === 'rejected' && (
+                        <Badge variant="destructive">Refusé</Badge>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {email.rule_reinforcement_suggestion && (
+                  <div className="space-y-2 p-3 bg-accent/50 rounded-lg">
+                    <div className="flex items-center gap-2 text-sm font-medium">
+                      <Lightbulb className="h-4 w-4 text-blue-500" />
+                      Suggestion de renforcement des règles
+                    </div>
+                    <div className="flex items-center justify-between pl-6">
+                      <p className="text-sm">{email.rule_reinforcement_suggestion}</p>
+                      {email.rule_reinforcement_status === 'pending' && (
+                        <div className="flex gap-2">
+                          <Button 
+                            size="sm" 
+                            variant="outline"
+                            onClick={() => validateRuleReinforcement(email.id, true)}
+                          >
+                            <Check className="h-3 w-3 mr-1" />
+                            Accepter
+                          </Button>
+                          <Button 
+                            size="sm" 
+                            variant="outline"
+                            onClick={() => validateRuleReinforcement(email.id, false)}
+                          >
+                            <X className="h-3 w-3 mr-1" />
+                            Refuser
+                          </Button>
+                        </div>
+                      )}
+                      {email.rule_reinforcement_status === 'accepted' && (
+                        <Badge variant="default">Accepté</Badge>
+                      )}
+                      {email.rule_reinforcement_status === 'rejected' && (
+                        <Badge variant="destructive">Refusé</Badge>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </CollapsibleContent>
+          </Collapsible>
+        </Card>
       ))}
     </div>
   );

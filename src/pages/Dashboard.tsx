@@ -10,6 +10,7 @@ import { ApiConfiguration } from '@/components/dashboard/ApiConfiguration';
 import { EmailRules } from '@/components/dashboard/EmailRules';
 import { WebhookTester } from '@/components/dashboard/WebhookTester';
 import { GmailConnect } from '@/components/dashboard/GmailConnect';
+import { EmailSummary } from '@/components/dashboard/EmailSummary';
 
 const Dashboard = () => {
   const { user, loading, signOut } = useAuth();
@@ -46,7 +47,7 @@ const Dashboard = () => {
 
       <main className="container mx-auto px-4 py-8">
         <Tabs defaultValue="emails" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4 lg:w-auto">
+          <TabsList className="grid w-full grid-cols-5 lg:w-auto">
             <TabsTrigger value="emails">
               <Mail className="mr-2 h-4 w-4" />
               Emails
@@ -55,8 +56,12 @@ const Dashboard = () => {
               <Settings className="mr-2 h-4 w-4" />
               Règles
             </TabsTrigger>
-            <TabsTrigger value="config">
+            <TabsTrigger value="summary">
               <BarChart3 className="mr-2 h-4 w-4" />
+              Résumés
+            </TabsTrigger>
+            <TabsTrigger value="config">
+              <Settings className="mr-2 h-4 w-4" />
               Configuration
             </TabsTrigger>
             <TabsTrigger value="webhooks">
@@ -91,6 +96,10 @@ const Dashboard = () => {
                 <EmailRules />
               </CardContent>
             </Card>
+          </TabsContent>
+
+          <TabsContent value="summary" className="space-y-4">
+            <EmailSummary />
           </TabsContent>
 
           <TabsContent value="config" className="space-y-4">

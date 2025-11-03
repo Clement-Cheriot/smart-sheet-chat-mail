@@ -16,19 +16,26 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    const { userId, period } = await req.json();
+    const { userId, period, startDate, endDate } = await req.json();
     console.log(`Generating ${period} summary for user:`, userId);
 
-    // Get time range based on period
-    const now = new Date();
+    // Determine time range based on period
     let startTime: Date;
-    
-    if (period === 'daily') {
-      startTime = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+    let endTime: Date;
+
+    if (period === 'custom' && startDate && endDate) {
+      startTime = new Date(startDate);
+      endTime = new Date(endDate);
+    } else if (period === 'daily') {
+      startTime = new Date();
+      startTime.setHours(0, 0, 0, 0);
+      endTime = new Date();
     } else if (period === 'weekly') {
-      startTime = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+      startTime = new Date();
+      startTime.setDate(startTime.getDate() - 7);
+      endTime = new Date();
     } else {
-      startTime = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+      throw new Error('Invalid period. Use "daily", "weekly", or "custom" with dates');
     }
 
     // Get email history for period

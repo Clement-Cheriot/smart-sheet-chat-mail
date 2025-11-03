@@ -91,48 +91,60 @@ serve(async (req) => {
   }
 });
 
-async function fetchRulesFromSheets(sheetsId: string, credentials: any): Promise<any[]> {
-  // Mock implementation - in production, use Google Sheets API
-  console.log(`Fetching rules from sheet: ${sheetsId}`);
-  
-  // Example structure of rules from Google Sheets:
-  // Column A: sender_pattern
-  // Column B: keywords (comma-separated)
-  // Column C: label_to_apply
-  // Column D: priority (low/medium/high)
-  // Column E: auto_action
-  // Column F: response_template
-  
-  // Example Google Sheets API call:
-  // const response = await fetch(
-  //   `https://sheets.googleapis.com/v4/spreadsheets/${sheetsId}/values/Rules!A2:F100`,
-  //   {
-  //     headers: {
-  //       'Authorization': `Bearer ${credentials.access_token}`,
-  //     }
-  //   }
-  // );
-  // const data = await response.json();
-  // return data.values.map(row => ({
-  //   sender_pattern: row[0],
-  //   keywords: row[1] ? row[1].split(',').map(k => k.trim()) : [],
-  //   label_to_apply: row[2],
-  //   priority: row[3] || 'medium',
-  //   auto_action: row[4],
-  //   response_template: row[5],
-  //   is_active: true,
-  // }));
-  
-  // Return mock data for now
-  return [
-    {
-      sender_pattern: '.*@example\\.com',
-      keywords: ['urgent', 'important'],
-      label_to_apply: 'Work',
-      priority: 'high',
-      auto_action: 'create_draft',
-      response_template: 'Merci pour votre message. Je reviendrai vers vous rapidement.',
-      is_active: true,
+async function fetchRulesFromSheets(
+  sheetsId: string,
+  credentials: any
+): Promise<any[]> {
+  try {
+    // Extract the actual spreadsheet ID from the URL if needed
+    const spreadsheetId = sheetsId.includes('/') 
+      ? sheetsId.match(/\/d\/([a-zA-Z0-9-_]+)/)?.[1] || sheetsId
+      : sheetsId;
+    
+    console.log('Fetching rules from Google Sheets:', spreadsheetId);
+
+    // Get access token from credentials
+    const accessToken = credentials.access_token;
+    if (!accessToken) {
+      throw new Error('No access token available');
     }
-  ];
+
+    // Fetch data from Google Sheets
+    // Expecting columns: Label, Sender Pattern, Keywords, Priority, Auto Action, Response Template
+    const range = 'A2:F100'; // Skip header row, fetch up to 100 rules
+    const url = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${range}`;
+    
+    const response = await fetch(url, {
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      const error = await response.text();
+      console.error('Google Sheets API error:', error);
+      throw new Error(`Failed to fetch from Google Sheets: ${response.status}`);
+    }
+
+    const data = await response.json();
+    const rows = data.values || [];
+
+    console.log(`Found ${rows.length} rules in Google Sheets`);
+
+    // Transform rows into rule objects
+    return rows
+      .filter((row: string[]) => row[0]) // Must have a label
+      .map((row: string[]) => ({
+        label_to_apply: row[0] || '',
+        sender_pattern: row[1] || null,
+        keywords: row[2] ? row[2].split(',').map((k: string) => k.trim()) : [],
+        priority: row[3] || 'medium',
+        auto_action: row[4] || 'label',
+        response_template: row[5] || null,
+      }));
+  } catch (error) {
+    console.error('Error fetching from Google Sheets:', error);
+    throw error;
+  }
 }

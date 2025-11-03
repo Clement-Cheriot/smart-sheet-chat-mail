@@ -46,50 +46,71 @@ export type Database = {
       }
       email_history: {
         Row: {
+          actions_taken: Json | null
           ai_analysis: Json | null
+          ai_reasoning: string | null
           applied_label: string | null
+          body_summary: string | null
           created_at: string
           draft_created: boolean | null
           draft_id: string | null
           gmail_message_id: string
           id: string
+          label_validation_status: string | null
           priority_score: number | null
           processed_at: string
           received_at: string
+          rule_reinforcement_status: string | null
+          rule_reinforcement_suggestion: string | null
           sender: string
           subject: string | null
+          suggested_new_label: string | null
           user_id: string
           whatsapp_notified: boolean | null
         }
         Insert: {
+          actions_taken?: Json | null
           ai_analysis?: Json | null
+          ai_reasoning?: string | null
           applied_label?: string | null
+          body_summary?: string | null
           created_at?: string
           draft_created?: boolean | null
           draft_id?: string | null
           gmail_message_id: string
           id?: string
+          label_validation_status?: string | null
           priority_score?: number | null
           processed_at?: string
           received_at: string
+          rule_reinforcement_status?: string | null
+          rule_reinforcement_suggestion?: string | null
           sender: string
           subject?: string | null
+          suggested_new_label?: string | null
           user_id: string
           whatsapp_notified?: boolean | null
         }
         Update: {
+          actions_taken?: Json | null
           ai_analysis?: Json | null
+          ai_reasoning?: string | null
           applied_label?: string | null
+          body_summary?: string | null
           created_at?: string
           draft_created?: boolean | null
           draft_id?: string | null
           gmail_message_id?: string
           id?: string
+          label_validation_status?: string | null
           priority_score?: number | null
           processed_at?: string
           received_at?: string
+          rule_reinforcement_status?: string | null
+          rule_reinforcement_suggestion?: string | null
           sender?: string
           subject?: string | null
+          suggested_new_label?: string | null
           user_id?: string
           whatsapp_notified?: boolean | null
         }
@@ -136,6 +157,63 @@ export type Database = {
           rule_order?: number
           sender_pattern?: string | null
           updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      email_summaries: {
+        Row: {
+          created_at: string | null
+          id: string
+          period_end: string
+          period_start: string
+          sent_at: string | null
+          summary_content: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          period_end: string
+          period_start: string
+          sent_at?: string | null
+          summary_content?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          period_end?: string
+          period_start?: string
+          sent_at?: string | null
+          summary_content?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      email_summary_schedules: {
+        Row: {
+          created_at: string | null
+          id: string
+          is_active: boolean | null
+          schedule_times: string[]
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          schedule_times?: string[]
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          schedule_times?: string[]
+          updated_at?: string | null
           user_id?: string
         }
         Relationships: []
