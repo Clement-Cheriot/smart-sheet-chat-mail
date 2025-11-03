@@ -78,18 +78,18 @@ export const EmailRules = () => {
     const templateData = [
       {
         rule_id: 'rule_001',
-        classification: 'Urgent',
+        classification: 'Trading Urgent',
         priority: 'high',
         enables: true,
-        conditions: '{"sender_pattern":".*@client.com","keywords":["urgent","important"],"auto_action":"create_draft"}',
-        description: 'Emails urgents des clients'
+        conditions: '{"domains":["binance.com","bitget.com","coinbase.com"],"keywords":["liquidation","margin","withdraw"]}',
+        description: 'Alertes trading urgentes'
       },
       {
         rule_id: 'rule_002',
         classification: 'Newsletter',
         priority: 'low',
         enables: true,
-        conditions: '{"sender_pattern":".*@newsletter.com","keywords":["newsletter","abonnement"],"auto_action":null}',
+        conditions: '{"domains":["newsletter.com","marketing.com"],"keywords":["newsletter","abonnement"]}',
         description: 'Newsletters marketing'
       }
     ];
@@ -138,13 +138,20 @@ export const EmailRules = () => {
           console.error('Error parsing conditions for row:', row, e);
         }
 
+        // Convert domains array to sender_pattern regex
+        let senderPattern = null;
+        if (conditions.domains && conditions.domains.length > 0) {
+          const domainsPattern = conditions.domains.map((d: string) => d.replace('.', '\\.')).join('|');
+          senderPattern = `.*@(${domainsPattern})`;
+        }
+
         return {
           user_id: user?.id,
-          sender_pattern: conditions.sender_pattern || null,
+          sender_pattern: senderPattern,
           keywords: conditions.keywords || [],
           label_to_apply: row.classification || 'Imported',
           priority: row.priority?.toLowerCase() || 'medium',
-          auto_action: conditions.auto_action || null,
+          auto_action: null, // L'IA décide
           is_active: row.enables === true || row.enables === 'true' || row.enables === 1,
           rule_order: index,
         };
