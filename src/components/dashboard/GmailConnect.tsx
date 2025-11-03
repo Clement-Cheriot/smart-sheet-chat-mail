@@ -8,6 +8,7 @@ import { toast } from "sonner";
 export const GmailConnect = () => {
   const [isConnected, setIsConnected] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [syncing, setSyncing] = useState(false);
   const [checking, setChecking] = useState(true);
 
   useEffect(() => {
@@ -81,6 +82,35 @@ export const GmailConnect = () => {
     }
   };
 
+  const handleSyncEmails = async () => {
+    setSyncing(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!session) {
+        toast.error("Vous devez être connecté");
+        return;
+      }
+
+      const { data, error } = await supabase.functions.invoke('gmail-sync', {
+        body: { userId: session.user.id },
+      });
+
+      if (error) throw error;
+
+      if (data?.reason === 'sync_already_in_progress') {
+        toast.error(data.message || 'Une synchronisation est déjà en cours');
+      } else {
+        toast.success(`${data.processedCount || 0} emails synchronisés`);
+      }
+    } catch (error: any) {
+      console.error('Error syncing emails:', error);
+      toast.error("Erreur lors de la synchronisation");
+    } finally {
+      setSyncing(false);
+    }
+  };
+
   if (checking) {
     return (
       <Card>
@@ -129,6 +159,17 @@ export const GmailConnect = () => {
           >
             {isLoading ? "Connexion..." : isConnected ? "Reconnecter Gmail" : "Connecter Gmail"}
           </Button>
+
+          {isConnected && (
+            <Button
+              onClick={handleSyncEmails}
+              disabled={syncing}
+              variant="outline"
+              className="w-full"
+            >
+              {syncing ? "Synchronisation..." : "Synchroniser les emails"}
+            </Button>
+          )}
 
           <p className="text-xs text-muted-foreground">
             En vous connectant, vous autorisez l'application à :

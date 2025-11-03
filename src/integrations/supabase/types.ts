@@ -237,18 +237,21 @@ export type Database = {
         Row: {
           created_at: string
           last_synced_at: string
+          sync_in_progress: boolean | null
           updated_at: string
           user_id: string
         }
         Insert: {
           created_at?: string
           last_synced_at?: string
+          sync_in_progress?: boolean | null
           updated_at?: string
           user_id: string
         }
         Update: {
           created_at?: string
           last_synced_at?: string
+          sync_in_progress?: boolean | null
           updated_at?: string
           user_id?: string
         }
@@ -289,6 +292,7 @@ export type Database = {
           whatsapp_api_token: string | null
           whatsapp_phone_number_id: string | null
           whatsapp_recipient_number: string | null
+          whatsapp_threshold: number | null
         }
         Insert: {
           created_at?: string
@@ -300,6 +304,7 @@ export type Database = {
           whatsapp_api_token?: string | null
           whatsapp_phone_number_id?: string | null
           whatsapp_recipient_number?: string | null
+          whatsapp_threshold?: number | null
         }
         Update: {
           created_at?: string
@@ -311,6 +316,7 @@ export type Database = {
           whatsapp_api_token?: string | null
           whatsapp_phone_number_id?: string | null
           whatsapp_recipient_number?: string | null
+          whatsapp_threshold?: number | null
         }
         Relationships: []
       }

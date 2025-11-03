@@ -16,6 +16,7 @@ export const EmailSummary = () => {
   const [manualStartDate, setManualStartDate] = useState('');
   const [manualEndDate, setManualEndDate] = useState('');
   const [loading, setLoading] = useState(false);
+  const [sendingWhatsApp, setSendingWhatsApp] = useState(false);
   const [latestSummary, setLatestSummary] = useState<{ content: string; start: string; end: string } | null>(null);
   const startRef = useRef<HTMLInputElement>(null);
   const endRef = useRef<HTMLInputElement>(null);
@@ -217,17 +218,51 @@ export const EmailSummary = () => {
     }
   };
 
+  const sendSummaryToWhatsApp = async () => {
+    if (!latestSummary?.content) {
+      toast({ title: 'Erreur', description: 'Aucun résumé disponible', variant: 'destructive' });
+      return;
+    }
+
+    setSendingWhatsApp(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('whatsapp-sender', {
+        body: {
+          userId: user?.id,
+          type: 'summary',
+          message: `📊 Résumé emails\n\n${latestSummary.content}`,
+          useTemplate: false,
+        },
+      });
+
+      if (error) throw error;
+
+      toast({ title: 'Succès', description: 'Résumé envoyé sur WhatsApp' });
+    } catch (error: any) {
+      console.error('Error sending to WhatsApp:', error);
+      toast({ title: 'Erreur', description: error.message || 'Échec de l\'envoi WhatsApp', variant: 'destructive' });
+    } finally {
+      setSendingWhatsApp(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       {latestSummary && (
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center justify-between">
+          <CardTitle className="flex items-center justify-between">
               <span>Dernier résumé</span>
-              <Button onClick={copyToClipboard} variant="outline" size="sm">
-                <Copy className="h-4 w-4 mr-2" />
-                Copier
-              </Button>
+              <div className="flex gap-2">
+                <Button onClick={copyToClipboard} variant="outline" size="sm">
+                  <Copy className="h-4 w-4 mr-2" />
+                  Copier
+                </Button>
+                <Button onClick={sendSummaryToWhatsApp} disabled={sendingWhatsApp} variant="outline" size="sm">
+                  <Send className="h-4 w-4 mr-2" />
+                  {sendingWhatsApp ? 'Envoi...' : 'WhatsApp'}
+                </Button>
+              </div>
             </CardTitle>
             <CardDescription>
               Du {new Date(latestSummary.start).toLocaleString('fr-FR')} au {new Date(latestSummary.end).toLocaleString('fr-FR')}

@@ -15,10 +15,12 @@ interface LogRecord {
 
 export const AdminLogs = () => {
   const [logs, setLogs] = useState<LogRecord[]>([]);
+  const [gmailLogs, setGmailLogs] = useState<LogRecord[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     loadLogs();
+    loadGmailLogs();
   }, []);
 
   const loadLogs = async () => {
@@ -26,6 +28,7 @@ export const AdminLogs = () => {
       const { data, error } = await supabase
         .from('activity_logs')
         .select('id, action_type, status, error_message, created_at')
+        .not('action_type', 'in', '(gmail_label_applied,gmail_draft_created,gmail_reply_sent)')
         .order('created_at', { ascending: false })
         .limit(50);
 
@@ -35,6 +38,22 @@ export const AdminLogs = () => {
       console.error('Error loading logs:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadGmailLogs = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('activity_logs')
+        .select('id, action_type, status, error_message, created_at')
+        .in('action_type', ['gmail_label_applied', 'gmail_draft_created', 'gmail_reply_sent'])
+        .order('created_at', { ascending: false })
+        .limit(20);
+
+      if (error) throw error;
+      setGmailLogs(data || []);
+    } catch (error) {
+      console.error('Error loading Gmail logs:', error);
     }
   };
 
@@ -74,8 +93,50 @@ export const AdminLogs = () => {
   }
 
   return (
-    <div className="space-y-3">
-      {logs.map((log) => (
+    <div className="space-y-6">
+      {/* Gmail Actions Panel */}
+      {gmailLogs.length > 0 && (
+        <div>
+          <h3 className="text-lg font-semibold mb-3">Dernières actions Gmail</h3>
+          <div className="space-y-3">
+            {gmailLogs.map((log) => (
+              <div
+                key={log.id}
+                className="p-4 border rounded-lg hover:bg-accent/50 transition-colors"
+              >
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex items-start gap-3 flex-1">
+                    {getStatusIcon(log.status)}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <p className="font-medium">{log.action_type}</p>
+                        <Badge variant={getStatusVariant(log.status)}>
+                          {log.status}
+                        </Badge>
+                      </div>
+                      {log.error_message && (
+                        <p className="text-sm text-destructive">{log.error_message}</p>
+                      )}
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {formatDistanceToNow(new Date(log.created_at), {
+                          addSuffix: true,
+                          locale: fr,
+                        })}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* All Other Logs */}
+      <div>
+        <h3 className="text-lg font-semibold mb-3">Tous les logs</h3>
+        <div className="space-y-3">
+          {logs.map((log) => (
         <div
           key={log.id}
           className="p-4 border rounded-lg hover:bg-accent/50 transition-colors"
@@ -102,8 +163,10 @@ export const AdminLogs = () => {
               </div>
             </div>
           </div>
+          </div>
+        ))}
         </div>
-      ))}
+      </div>
     </div>
   );
 };

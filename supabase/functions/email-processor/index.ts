@@ -68,16 +68,17 @@ serve(async (req) => {
     let shouldNotifyUrgent = false;
     
     if (matchedRules.length > 0) {
-      // Collect all labels from matched rules
-      appliedLabels = matchedRules
-        .map((rule: any) => rule.label_to_apply)
-        .filter((label: any) => label != null) as string[];
-      
       // Sort by rule_order and take the first matching rule for primary action
       const sortedRules = matchedRules.sort((a: any, b: any) => a.rule_order - b.rule_order);
       const primaryRule = sortedRules[0];
       
       appliedRuleId = primaryRule;
+      
+      // Only apply label from primary rule (highest priority)
+      if (primaryRule.label_to_apply) {
+        appliedLabels = [primaryRule.label_to_apply];
+        console.log(`Applying label "${primaryRule.label_to_apply}" from primary rule (priority ${primaryRule.rule_order})`);
+      }
       
       // Check if any rule has notify_urgent
       shouldNotifyUrgent = matchedRules.some((rule: any) => rule.notify_urgent);
@@ -154,7 +155,7 @@ serve(async (req) => {
       appliedLabels.push('Needs Manual Review');
     }
 
-    // Determine rule reinforcement suggestion
+    // Determine rule reinforcement suggestion (only if no rule matched)
     let ruleReinforcement = null;
     const knownCategories = ['work','personal','newsletter','spam','billing','support','marketing','other'];
     const suggestedLabel = (
@@ -162,7 +163,7 @@ serve(async (req) => {
       (!knownCategories.includes(aiAnalysis.category) || aiAnalysis.category === 'other') &&
       aiAnalysis.suggested_label
     ) ? aiAnalysis.suggested_label : null;
-    if (appliedRuleId && suggestedLabel && !appliedLabels.includes(suggestedLabel)) {
+    if (suggestedLabel && matchedRules.length === 0) {
       ruleReinforcement = `Consider adding rule for label "${suggestedLabel}" based on similar patterns`;
     }
 
@@ -255,8 +256,17 @@ serve(async (req) => {
         .eq('id', historyRecord.id);
     }
 
-    // Send WhatsApp notification for high priority emails or urgent rule matches
-    if (priorityScore >= 8 || shouldNotifyUrgent || aiAnalysis.is_urgent_whatsapp) {
+    // Get user's WhatsApp threshold (default to 8)
+    const { data: userConfig } = await supabase
+      .from('user_api_configs')
+      .select('whatsapp_threshold')
+      .eq('user_id', emailData.userId)
+      .maybeSingle();
+    
+    const threshold = userConfig?.whatsapp_threshold || 8;
+    
+    // Send WhatsApp notification if priority exceeds threshold or urgent rule matches
+    if (priorityScore >= threshold || shouldNotifyUrgent || aiAnalysis.is_urgent_whatsapp) {
       console.log('Sending WhatsApp notification');
       
       // Build suggested action message

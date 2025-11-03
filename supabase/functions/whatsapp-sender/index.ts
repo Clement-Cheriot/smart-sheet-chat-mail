@@ -10,6 +10,8 @@ interface WhatsAppMessage {
   userId: string;
   type: 'alert' | 'summary';
   message: string;
+  useTemplate?: boolean;
+  templateName?: string;
 }
 
 serve(async (req) => {
@@ -22,8 +24,8 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    const { userId, type, message }: WhatsAppMessage = await req.json();
-    console.log(`Sending WhatsApp ${type} to user:`, userId);
+    const { userId, type, message, useTemplate, templateName }: WhatsAppMessage = await req.json();
+    console.log(`Sending WhatsApp ${type} to user:`, userId, useTemplate ? `(template: ${templateName})` : '(text)');
 
     // Get user's WhatsApp config
     const { data: config, error: configError } = await supabase
@@ -44,6 +46,34 @@ serve(async (req) => {
       );
     }
 
+    // Build message body based on useTemplate flag
+    let messageBody: any;
+    
+    if (useTemplate) {
+      // Use template mode
+      messageBody = {
+        messaging_product: 'whatsapp',
+        to: config.whatsapp_recipient_number,
+        type: 'template',
+        template: {
+          name: templateName || 'hello_world',
+          language: {
+            code: 'en_US'
+          }
+        }
+      };
+    } else {
+      // Use text mode
+      messageBody = {
+        messaging_product: 'whatsapp',
+        to: config.whatsapp_recipient_number,
+        type: 'text',
+        text: {
+          body: message
+        }
+      };
+    }
+
     // Send WhatsApp message using WhatsApp Business API
     const whatsappResponse = await fetch(
       `https://graph.facebook.com/v18.0/${config.whatsapp_phone_number_id}/messages`,
@@ -53,20 +83,43 @@ serve(async (req) => {
           'Authorization': `Bearer ${config.whatsapp_api_token}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          messaging_product: 'whatsapp',
-          to: config.whatsapp_recipient_number,
-          type: 'text',
-          text: {
-            body: message
-          }
-        })
+        body: JSON.stringify(messageBody)
       }
     );
 
     if (!whatsappResponse.ok) {
-      const errorData = await whatsappResponse.text();
-      throw new Error(`WhatsApp API error: ${errorData}`);
+      const errorText = await whatsappResponse.text();
+      let errorCode = 'unknown';
+      let errorSubcode = 'unknown';
+      let errorMessage = errorText;
+      
+      try {
+        const errorJson = JSON.parse(errorText);
+        if (errorJson.error) {
+          errorCode = errorJson.error.code || 'unknown';
+          errorSubcode = errorJson.error.error_subcode || 'unknown';
+          errorMessage = errorJson.error.message || errorText;
+        }
+      } catch {}
+      
+      console.error(`WhatsApp API error: code=${errorCode}, subcode=${errorSubcode}, message=${errorMessage}`);
+      
+      // Log error to activity_logs
+      await supabase.from('activity_logs').insert({
+        user_id: userId,
+        action_type: 'whatsapp_error',
+        action_details: { 
+          type, 
+          errorCode, 
+          errorSubcode, 
+          errorMessage,
+          templateUsed: useTemplate 
+        },
+        status: 'error',
+        error_message: `WhatsApp error ${errorCode}/${errorSubcode}: ${errorMessage}`
+      });
+      
+      throw new Error(`WhatsApp API error ${errorCode}/${errorSubcode}: ${errorMessage}`);
     }
 
     const result = await whatsappResponse.json();

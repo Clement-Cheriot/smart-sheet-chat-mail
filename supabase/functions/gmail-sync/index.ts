@@ -11,13 +11,43 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
-  try {
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const supabase = createClient(supabaseUrl, supabaseKey);
+  const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+  const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+  const supabase = createClient(supabaseUrl, supabaseKey);
+  
+  let userId: string | null = null;
 
-    const { userId } = await req.json();
+  try {
+    const body = await req.json();
+    userId = body.userId;
     console.log('Syncing emails for user:', userId);
+
+    // Check if sync is already in progress
+    const { data: syncState } = await supabase
+      .from('gmail_sync_state')
+      .select('sync_in_progress')
+      .eq('user_id', userId)
+      .maybeSingle();
+    
+    if (syncState?.sync_in_progress) {
+      console.log('Sync already in progress for user:', userId);
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          reason: 'sync_already_in_progress',
+          message: 'Une synchronisation est déjà en cours'
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Set sync_in_progress to true
+    await supabase
+      .from('gmail_sync_state')
+      .upsert(
+        { user_id: userId, sync_in_progress: true },
+        { onConflict: 'user_id' }
+      );
 
     // Get user's Gmail credentials
     const { data: config, error: configError } = await supabase
@@ -150,11 +180,15 @@ serve(async (req) => {
         console.error(`Exception processing message ${message.id}:`, err);
       }
     }
-    // Update sync checkpoint
+    // Update sync checkpoint and clear sync_in_progress
     await supabase
       .from('gmail_sync_state')
       .upsert(
-        { user_id: userId, last_synced_at: new Date().toISOString() },
+        { 
+          user_id: userId, 
+          last_synced_at: new Date().toISOString(),
+          sync_in_progress: false 
+        },
         { onConflict: 'user_id' }
       );
 
@@ -168,6 +202,19 @@ serve(async (req) => {
 
   } catch (error: any) {
     console.error('Error syncing emails:', error);
+    
+    // Clear sync_in_progress on error if we have userId
+    if (userId) {
+      try {
+        await supabase
+          .from('gmail_sync_state')
+          .update({ sync_in_progress: false })
+          .eq('user_id', userId);
+      } catch (clearError) {
+        console.error('Error clearing sync flag:', clearError);
+      }
+    }
+    
     return new Response(
       JSON.stringify({ error: error.message }),
       { 
