@@ -18,6 +18,7 @@ interface EmailRecord {
   applied_label: string;
   priority_score: number;
   draft_created: boolean;
+  draft_id: string | null;
   body_summary: string | null;
   ai_reasoning: string | null;
   suggested_new_label: string | null;
@@ -25,6 +26,8 @@ interface EmailRecord {
   actions_taken: any[];
   label_validation_status: string;
   rule_reinforcement_status: string;
+  whatsapp_notified: boolean;
+  ai_analysis: any;
 }
 
 export const EmailHistory = () => {
@@ -102,9 +105,12 @@ export const EmailHistory = () => {
     }
   };
 
+  const [isClearing, setIsClearing] = useState(false);
+
   const clearAllEmails = async () => {
     if (!confirm('Êtes-vous sûr de vouloir supprimer tout l\'historique des emails ?')) return;
     
+    setIsClearing(true);
     try {
       const { error } = await supabase
         .from('email_history')
@@ -120,6 +126,8 @@ export const EmailHistory = () => {
       });
     } catch (error: any) {
       toast({ title: 'Erreur', description: error.message, variant: 'destructive' });
+    } finally {
+      setIsClearing(false);
     }
   };
 
@@ -160,9 +168,9 @@ export const EmailHistory = () => {
     <div className="space-y-4">
       {emails.length > 0 && (
         <div className="flex justify-end">
-          <Button variant="outline" onClick={clearAllEmails}>
+          <Button variant="outline" onClick={clearAllEmails} disabled={isClearing}>
             <Trash className="mr-2 h-4 w-4" />
-            Vider l'historique
+            {isClearing ? 'Suppression...' : 'Vider l\'historique'}
           </Button>
         </div>
       )}
@@ -201,25 +209,44 @@ export const EmailHistory = () => {
                 </div>
               </div>
 
-              <div className="flex items-center gap-2 flex-wrap mt-2">
-                {email.applied_label && (
-                  <Badge variant="outline" className="text-xs">
-                    <Tag className="h-3 w-3 mr-1" />
-                    {email.applied_label}
-                  </Badge>
-                )}
-                {email.actions_taken?.map((action: any, idx: number) => (
-                  <Badge key={idx} variant="secondary" className="text-xs">
-                    {getActionIcon(action.type)}
-                    <span className="ml-1">
-                      {action.type === 'label' && `Label: ${action.value}`}
-                      {action.type === 'draft_created' && 'Brouillon créé'}
-                      {action.type === 'manual_review' && 'Revue manuelle'}
-                      {action.type === 'calendar_needed' && 'Calendrier'}
-                      {action.type === 'whatsapp_urgent' && 'WhatsApp envoyé'}
-                    </span>
-                  </Badge>
-                ))}
+              <div className="mt-3 space-y-2">
+                <p className="text-xs font-medium text-muted-foreground">Actions de l'IA :</p>
+                <div className="flex flex-col gap-2">
+                  {email.applied_label && (
+                    <div className="flex items-center gap-2 text-xs">
+                      <Tag className="h-3 w-3 text-primary" />
+                      <span className="font-medium">Application de label :</span>
+                      <Badge variant="outline" className="text-xs">{email.applied_label}</Badge>
+                    </div>
+                  )}
+                  
+                  {email.draft_created && email.draft_id && (
+                    <div className="flex items-center gap-2 text-xs">
+                      <Mail className="h-3 w-3 text-blue-500" />
+                      <span className="font-medium">Rédaction d'un brouillon :</span>
+                      <Button variant="link" size="sm" className="h-auto p-0 text-xs">
+                        Voir détails
+                      </Button>
+                    </div>
+                  )}
+                  
+                  {email.whatsapp_notified && (
+                    <div className="flex items-center gap-2 text-xs">
+                      <MessageSquare className="h-3 w-3 text-green-500" />
+                      <span className="font-medium">Notification urgente WhatsApp</span>
+                    </div>
+                  )}
+                  
+                  {email.ai_analysis?.needs_calendar_action && (
+                    <div className="flex items-center gap-2 text-xs">
+                      <Calendar className="h-3 w-3 text-orange-500" />
+                      <span className="font-medium">Ajout/modification du calendrier :</span>
+                      <Button variant="link" size="sm" className="h-auto p-0 text-xs">
+                        Voir détails (à développer)
+                      </Button>
+                    </div>
+                  )}
+                </div>
               </div>
             </CardHeader>
 

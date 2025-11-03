@@ -33,19 +33,17 @@ serve(async (req) => {
     const credentials = config.gmail_credentials;
     let accessToken = credentials.access_token;
 
-    // Get the last processed message ID to avoid duplicates
-    const { data: lastEmail } = await supabase
+    // Get all processed message IDs to avoid duplicates
+    const { data: processedEmails } = await supabase
       .from('email_history')
       .select('gmail_message_id')
-      .eq('user_id', userId)
-      .order('received_at', { ascending: false })
-      .limit(1)
-      .single();
+      .eq('user_id', userId);
 
-    // Fetch new messages from Gmail
-    const gmailUrl = lastEmail?.gmail_message_id
-      ? `https://gmail.googleapis.com/gmail/v1/users/me/messages?q=after:${Math.floor(Date.now() / 1000) - 3600}`
-      : `https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=10`;
+    const processedIds = new Set(processedEmails?.map(e => e.gmail_message_id) || []);
+
+    // Fetch recent messages from Gmail (last 24 hours)
+    const oneDayAgo = Math.floor(Date.now() / 1000) - 86400;
+    const gmailUrl = `https://gmail.googleapis.com/gmail/v1/users/me/messages?q=after:${oneDayAgo}&maxResults=50`;
 
     let response = await fetch(gmailUrl, {
       headers: { 'Authorization': `Bearer ${accessToken}` },
@@ -55,6 +53,18 @@ serve(async (req) => {
     if (!response.ok && (response.status === 401 || response.status === 403)) {
       console.log('Refreshing access token...');
       accessToken = await refreshAccessToken(credentials);
+      
+      // Update the access token in database
+      await supabase
+        .from('user_api_configs')
+        .update({
+          gmail_credentials: {
+            ...credentials,
+            access_token: accessToken
+          }
+        })
+        .eq('user_id', userId);
+      
       response = await fetch(gmailUrl, {
         headers: { 'Authorization': `Bearer ${accessToken}` },
       });
@@ -65,9 +75,12 @@ serve(async (req) => {
     }
 
     const data = await response.json();
-    const messages = data.messages || [];
+    const allMessages = data.messages || [];
+    
+    // Filter out already processed messages
+    const messages = allMessages.filter((msg: any) => !processedIds.has(msg.id));
 
-    console.log(`Found ${messages.length} new messages`);
+    console.log(`Found ${messages.length} new messages out of ${allMessages.length} total`);
 
     // Process each message through email-processor
     for (const message of messages) {

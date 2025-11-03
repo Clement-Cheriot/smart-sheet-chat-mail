@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { Plus, Trash2, Edit, Upload, Download, Power, Trash } from 'lucide-react';
 import * as XLSX from 'xlsx';
+import { EditRuleDialog } from './EditRuleDialog';
 
 interface Rule {
   id: string;
@@ -20,6 +21,7 @@ export const EmailRules = () => {
   const [rules, setRules] = useState<Rule[]>([]);
   const [loading, setLoading] = useState(true);
   const [importing, setImporting] = useState(false);
+  const [editingRule, setEditingRule] = useState<Rule | null>(null);
   const { user } = useAuth();
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -343,7 +345,7 @@ export const EmailRules = () => {
                   <Button
                     variant="outline"
                     size="icon"
-                    onClick={() => toast({ title: 'Fonctionnalité en cours de développement' })}
+                    onClick={() => setEditingRule(rule)}
                     title="Modifier"
                   >
                     <Edit className="h-4 w-4" />
@@ -361,6 +363,15 @@ export const EmailRules = () => {
             </div>
           ))}
         </div>
+      )}
+
+      {editingRule && (
+        <EditRuleDialog
+          open={!!editingRule}
+          onOpenChange={(open) => !open && setEditingRule(null)}
+          rule={editingRule}
+          onSuccess={loadRules}
+        />
       )}
     </div>
   );
