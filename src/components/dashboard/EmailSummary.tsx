@@ -23,6 +23,7 @@ export const EmailSummary = () => {
   useEffect(() => {
     if (user) {
       loadSchedules();
+      loadLatestSummary();
     }
   }, [user]);
 
@@ -46,6 +47,37 @@ export const EmailSummary = () => {
       }
     } catch (error) {
       console.error('Error loading schedules:', error);
+    }
+  };
+
+  const loadLatestSummary = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('email_summaries')
+        .select('summary_content, period_start, period_end')
+        .eq('user_id', user?.id)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (error) throw error;
+
+      if (data) {
+        setLatestSummary({
+          content: data.summary_content || '',
+          start: data.period_start,
+          end: data.period_end,
+        });
+      }
+    } catch (error) {
+      console.error('Error loading latest summary:', error);
+    }
+  };
+
+  const copyToClipboard = () => {
+    if (latestSummary?.content) {
+      navigator.clipboard.writeText(latestSummary.content);
+      toast({ title: 'Copié', description: 'Résumé copié dans le presse-papier' });
     }
   };
 
@@ -106,11 +138,8 @@ export const EmailSummary = () => {
   };
 
   const sendManualSummary = async () => {
-    console.log('Manual dates:', { manualStartDate, manualEndDate });
-    
-    // Fallback: read from DOM if state is empty (some browsers can miss onChange)
-    const startVal = manualStartDate || startRef.current?.value || (document.getElementById('start-date') as HTMLInputElement)?.value || '';
-    const endVal = manualEndDate || endRef.current?.value || (document.getElementById('end-date') as HTMLInputElement)?.value || '';
+    const startVal = startRef.current?.value || '';
+    const endVal = endRef.current?.value || '';
 
     if (!startVal || !endVal) {
       toast({ title: 'Erreur', description: 'Veuillez sélectionner les dates', variant: 'destructive' });
@@ -135,17 +164,17 @@ export const EmailSummary = () => {
 
       if (error) throw error;
 
-      // Save summary to database
       await supabase.from('email_summaries').insert({
         user_id: user?.id,
         period_start: new Date(startVal).toISOString(),
         period_end: new Date(endVal).toISOString(),
-        summary_content: data.summary, // textual summary returned by function
+        summary_content: data.summary,
       });
 
-      toast({ title: 'Succès', description: 'Résumé envoyé sur WhatsApp' });
-      setManualStartDate('');
-      setManualEndDate('');
+      toast({ title: 'Succès', description: 'Résumé généré et enregistré' });
+      loadLatestSummary();
+      if (startRef.current) startRef.current.value = '';
+      if (endRef.current) endRef.current.value = '';
     } catch (error: any) {
       console.error('Error sending summary:', error);
       toast({ title: 'Erreur', description: error.message || 'Impossible d\'envoyer le résumé', variant: 'destructive' });
@@ -178,7 +207,8 @@ export const EmailSummary = () => {
         summary_content: (data as any)?.summary,
       });
 
-      toast({ title: 'Succès', description: 'Résumé des dernières 24h envoyé' });
+      toast({ title: 'Succès', description: 'Résumé des dernières 24h généré' });
+      loadLatestSummary();
     } catch (error: any) {
       console.error('Error sending 24h summary:', error);
       toast({ title: 'Erreur', description: error.message || "Échec de l'envoi du résumé 24h", variant: 'destructive' });
@@ -189,6 +219,28 @@ export const EmailSummary = () => {
 
   return (
     <div className="space-y-6">
+      {latestSummary && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center justify-between">
+              <span>Dernier résumé</span>
+              <Button onClick={copyToClipboard} variant="outline" size="sm">
+                <Copy className="h-4 w-4 mr-2" />
+                Copier
+              </Button>
+            </CardTitle>
+            <CardDescription>
+              Du {new Date(latestSummary.start).toLocaleString('fr-FR')} au {new Date(latestSummary.end).toLocaleString('fr-FR')}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <pre className="whitespace-pre-wrap text-sm bg-muted p-4 rounded-md">
+              {latestSummary.content}
+            </pre>
+          </CardContent>
+        </Card>
+      )}
+
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -257,17 +309,7 @@ export const EmailSummary = () => {
                 id="start-date"
                 ref={startRef}
                 type="datetime-local"
-                value={manualStartDate}
-                onChange={(e) => {
-                  console.log('Start date changed:', e.target.value);
-                  setManualStartDate(e.target.value);
-                }}
               />
-              {manualStartDate && (
-                <p className="text-xs text-muted-foreground">
-                  {new Date(manualStartDate).toLocaleString('fr-FR')}
-                </p>
-              )}
             </div>
             <div className="space-y-2">
               <Label htmlFor="end-date">Date de fin</Label>
@@ -275,17 +317,7 @@ export const EmailSummary = () => {
                 id="end-date"
                 ref={endRef}
                 type="datetime-local"
-                value={manualEndDate}
-                onChange={(e) => {
-                  console.log('End date changed:', e.target.value);
-                  setManualEndDate(e.target.value);
-                }}
               />
-              {manualEndDate && (
-                <p className="text-xs text-muted-foreground">
-                  {new Date(manualEndDate).toLocaleString('fr-FR')}
-                </p>
-              )}
             </div>
           </div>
 
