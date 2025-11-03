@@ -156,14 +156,20 @@ serve(async (req) => {
 
     // Determine rule reinforcement suggestion
     let ruleReinforcement = null;
-    if (appliedRuleId && aiAnalysis.suggested_label && !appliedLabels.includes(aiAnalysis.suggested_label)) {
-      ruleReinforcement = `Consider adding rule for label "${aiAnalysis.suggested_label}" based on similar patterns`;
+    const knownCategories = ['work','personal','newsletter','spam','billing','support','marketing','other'];
+    const suggestedLabel = (
+      matchedRules.length === 0 &&
+      (!knownCategories.includes(aiAnalysis.category) || aiAnalysis.category === 'other') &&
+      aiAnalysis.suggested_label
+    ) ? aiAnalysis.suggested_label : null;
+    if (appliedRuleId && suggestedLabel && !appliedLabels.includes(suggestedLabel)) {
+      ruleReinforcement = `Consider adding rule for label "${suggestedLabel}" based on similar patterns`;
     }
 
-    // Save to email history with enriched data
+    // Save to email history with upsert to avoid duplicates
     const { data: historyRecord, error: historyError } = await supabase
       .from('email_history')
-      .insert({
+      .upsert({
         user_id: emailData.userId,
         gmail_message_id: emailData.messageId,
         sender: emailData.sender,
@@ -175,10 +181,10 @@ serve(async (req) => {
         draft_created: false,
         body_summary: aiAnalysis.body_summary || emailData.body?.substring(0, 200),
         ai_reasoning: aiAnalysis.reasoning,
-        suggested_new_label: aiAnalysis.suggested_label,
+        suggested_new_label: suggestedLabel,
         rule_reinforcement_suggestion: ruleReinforcement,
         actions_taken: actionsTaken,
-      })
+      }, { onConflict: 'user_id,gmail_message_id' })
       .select()
       .single();
 

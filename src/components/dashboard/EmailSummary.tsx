@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { toast } from '@/hooks/use-toast';
-import { Calendar, Clock, Plus, Trash2, Send } from 'lucide-react';
+import { Calendar, Clock, Plus, Trash2, Send, Copy } from 'lucide-react';
 
 export const EmailSummary = () => {
   const { user } = useAuth();
@@ -16,6 +16,7 @@ export const EmailSummary = () => {
   const [manualStartDate, setManualStartDate] = useState('');
   const [manualEndDate, setManualEndDate] = useState('');
   const [loading, setLoading] = useState(false);
+  const [latestSummary, setLatestSummary] = useState<{ content: string; start: string; end: string } | null>(null);
   const startRef = useRef<HTMLInputElement>(null);
   const endRef = useRef<HTMLInputElement>(null);
 

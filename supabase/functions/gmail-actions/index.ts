@@ -117,25 +117,74 @@ serve(async (req) => {
   }
 });
 
-async function applyGmailLabel(messageId: string, label: string, credentials: any) {
-  // Mock implementation - in production, use Gmail API
-  console.log(`Applying label "${label}" to message ${messageId}`);
-  
-  // Example Gmail API call structure:
-  // const response = await fetch(
-  //   `https://gmail.googleapis.com/gmail/v1/users/me/messages/${messageId}/modify`,
-  //   {
-  //     method: 'POST',
-  //     headers: {
-  //       'Authorization': `Bearer ${credentials.access_token}`,
-  //       'Content-Type': 'application/json',
-  //     },
-  //     body: JSON.stringify({
-  //       addLabelIds: [label]
-  //     })
-  //   }
-  // );
-  
+async function applyGmailLabel(messageId: string, labelName: string, credentials: any) {
+  let accessToken = credentials.access_token;
+
+  // Helper to call Gmail API with automatic refresh on 401/403
+  const gmailFetch = async (url: string, init?: RequestInit): Promise<Response> => {
+    let res = await fetch(url, {
+      ...(init || {}),
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+        ...(init?.headers || {}),
+      },
+    });
+
+    if (!res.ok && (res.status === 401 || res.status === 403) && credentials.refresh_token) {
+      // Try refresh token once
+      accessToken = await refreshAccessToken(credentials);
+      res = await fetch(url, {
+        ...(init || {}),
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+          ...(init?.headers || {}),
+        },
+      });
+    }
+
+    return res;
+  };
+
+  // 1) Find or create the label to get its ID
+  const labelsRes = await gmailFetch('https://gmail.googleapis.com/gmail/v1/users/me/labels');
+  if (!labelsRes.ok) {
+    const text = await labelsRes.text();
+    throw new Error(`Gmail labels list failed: ${labelsRes.status} ${text}`);
+  }
+  const labelsJson = await labelsRes.json();
+  const existing = (labelsJson.labels || []).find((l: any) => l.name === labelName);
+
+  let labelId = existing?.id as string | undefined;
+  if (!labelId) {
+    const createRes = await gmailFetch('https://gmail.googleapis.com/gmail/v1/users/me/labels', {
+      method: 'POST',
+      body: JSON.stringify({
+        name: labelName,
+        labelListVisibility: 'labelShow',
+        messageListVisibility: 'show',
+      }),
+    });
+    if (!createRes.ok) {
+      const text = await createRes.text();
+      throw new Error(`Gmail label create failed: ${createRes.status} ${text}`);
+    }
+    const created = await createRes.json();
+    labelId = created.id;
+  }
+
+  // 2) Apply the label ID to the message
+  const modifyRes = await gmailFetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${messageId}/modify`, {
+    method: 'POST',
+    body: JSON.stringify({ addLabelIds: [labelId] }),
+  });
+  if (!modifyRes.ok) {
+    const text = await modifyRes.text();
+    throw new Error(`Gmail modify failed: ${modifyRes.status} ${text}`);
+  }
+
+  console.log(`Applied label "${labelName}" (id: ${labelId}) to message ${messageId}`);
   return { success: true };
 }
 
@@ -210,4 +259,27 @@ async function generateDraftWithAI(
     console.error('AI draft generation error:', error);
     return `Bonjour,\n\nMerci pour votre message. Je reviendrai vers vous prochainement.\n\nCordialement`;
   }
+}
+
+async function refreshAccessToken(credentials: any): Promise<string> {
+  const clientId = Deno.env.get('GOOGLE_OAUTH_CLIENT_ID');
+  const clientSecret = Deno.env.get('GOOGLE_OAUTH_CLIENT_SECRET');
+
+  const response = await fetch('https://oauth2.googleapis.com/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      client_id: clientId!,
+      client_secret: clientSecret!,
+      refresh_token: credentials.refresh_token,
+      grant_type: 'refresh_token',
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error('Failed to refresh access token');
+  }
+
+  const { access_token } = await response.json();
+  return access_token;
 }
