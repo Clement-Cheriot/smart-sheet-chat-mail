@@ -21,6 +21,8 @@ interface Rule {
   notify_urgent: boolean;
   exclude_newsletters: boolean;
   exclude_marketing: boolean;
+  ruleType?: 'label' | 'draft' | 'auto-reply' | 'notification';
+  user_id?: string;
 }
 
 export const EmailRules = () => {
@@ -234,75 +236,86 @@ export const EmailRules = () => {
   };
 
   const createExampleRules = async () => {
-    const exampleRules = [
-      {
-        user_id: user?.id,
-        label_to_apply: null,
-        sender_pattern: '@client-vip.com',
-        keywords: ['urgent', 'problème', 'erreur'],
-        priority: 'high',
-        auto_reply: true,
-        create_draft: false,
-        notify_urgent: false,
-        response_template: 'Bonjour,\n\nNous avons bien reçu votre demande urgente et notre équipe y travaille activement. Nous vous tiendrons informé sous peu.\n\nCordialement',
-        is_active: true,
-        exclude_newsletters: true,
-        exclude_marketing: true,
-        rule_order: 1
-      },
-      {
-        user_id: user?.id,
-        label_to_apply: null,
-        keywords: ['facture', 'paiement', 'devis'],
-        priority: 'medium',
-        create_draft: true,
-        auto_reply: false,
-        notify_urgent: false,
-        is_active: true,
-        exclude_newsletters: true,
-        exclude_marketing: true,
-        rule_order: 2
-      },
-      {
-        user_id: user?.id,
-        label_to_apply: 'Newsletter',
-        keywords: ['newsletter', 'actualités'],
-        priority: 'low',
-        auto_reply: false,
-        create_draft: false,
-        notify_urgent: false,
-        is_active: true,
-        exclude_newsletters: true,
-        exclude_marketing: true,
-        rule_order: 3
-      },
-      {
-        user_id: user?.id,
-        label_to_apply: 'Important/Urgent',
-        keywords: ['urgent', 'asap', 'immédiat', 'critique'],
-        priority: 'high',
-        auto_reply: false,
-        create_draft: false,
-        notify_urgent: true,
-        is_active: true,
-        exclude_newsletters: true,
-        exclude_marketing: true,
-        rule_order: 4
-      },
-      {
-        user_id: user?.id,
-        label_to_apply: 'Clients/VIP',
-        sender_pattern: '@vip-client.',
-        priority: 'high',
-        create_draft: true,
-        auto_reply: false,
-        notify_urgent: true,
-        is_active: true,
-        exclude_newsletters: true,
-        exclude_marketing: true,
-        rule_order: 5
-      }
-    ];
+    let exampleRules: any[] = [];
+    const baseOrder = rules.length;
+
+    if (activeTab === 'label') {
+      exampleRules = [
+        {
+          user_id: user?.id,
+          label_to_apply: 'Newsletter',
+          keywords: ['newsletter', 'actualités', 'abonnement'],
+          priority: 'low',
+          auto_reply: false,
+          create_draft: false,
+          notify_urgent: false,
+          is_active: true,
+          exclude_newsletters: true,
+          exclude_marketing: true,
+          rule_order: baseOrder
+        },
+        {
+          user_id: user?.id,
+          label_to_apply: 'Facturation',
+          keywords: ['facture', 'paiement', 'montant dû'],
+          priority: 'high',
+          is_active: true,
+          exclude_newsletters: true,
+          exclude_marketing: true,
+          rule_order: baseOrder + 1
+        }
+      ];
+    } else if (activeTab === 'draft') {
+      exampleRules = [
+        {
+          user_id: user?.id,
+          label_to_apply: null,
+          keywords: ['facture', 'paiement', 'devis'],
+          priority: 'medium',
+          create_draft: true,
+          auto_reply: false,
+          notify_urgent: false,
+          is_active: true,
+          exclude_newsletters: true,
+          exclude_marketing: true,
+          rule_order: baseOrder
+        }
+      ];
+    } else if (activeTab === 'auto-reply') {
+      exampleRules = [
+        {
+          user_id: user?.id,
+          label_to_apply: null,
+          sender_pattern: '@client-vip.com',
+          keywords: ['urgent', 'problème', 'erreur'],
+          priority: 'high',
+          auto_reply: true,
+          create_draft: false,
+          notify_urgent: false,
+          response_template: 'Bonjour,\n\nNous avons bien reçu votre demande urgente et notre équipe y travaille activement. Nous vous tiendrons informé sous peu.\n\nCordialement',
+          is_active: true,
+          exclude_newsletters: true,
+          exclude_marketing: true,
+          rule_order: baseOrder
+        }
+      ];
+    } else if (activeTab === 'notification') {
+      exampleRules = [
+        {
+          user_id: user?.id,
+          label_to_apply: null,
+          keywords: ['urgent', 'asap', 'immédiat', 'critique'],
+          priority: 'high',
+          auto_reply: false,
+          create_draft: false,
+          notify_urgent: true,
+          is_active: true,
+          exclude_newsletters: true,
+          exclude_marketing: true,
+          rule_order: baseOrder
+        }
+      ];
+    }
 
     try {
       const { error } = await supabase
@@ -314,7 +327,7 @@ export const EmailRules = () => {
       await loadRules();
       toast({
         title: 'Règles créées',
-        description: '5 règles d\'exemple ont été créées avec succès',
+        description: `${exampleRules.length} règle(s) d'exemple créée(s) avec succès`,
       });
     } catch (error: any) {
       toast({
@@ -436,7 +449,7 @@ export const EmailRules = () => {
                 <Button
                   variant="outline"
                   size="icon"
-                  onClick={() => setEditingRule(rule)}
+                  onClick={() => setEditingRule({ ...rule, ruleType: activeTab })}
                   title="Modifier"
                 >
                   <Edit className="h-4 w-4" />
@@ -574,7 +587,7 @@ export const EmailRules = () => {
               Vider ({getCurrentRules().length})
             </Button>
           )}
-          <Button onClick={() => setEditingRule({} as Rule)} size="sm">
+          <Button onClick={() => setEditingRule({ ruleType: activeTab, user_id: user?.id } as any)} size="sm">
             <Plus className="mr-2 h-4 w-4" />
             Nouvelle règle
           </Button>
@@ -603,6 +616,7 @@ export const EmailRules = () => {
           onOpenChange={(open) => !open && setEditingRule(null)}
           rule={editingRule}
           onSuccess={loadRules}
+          ruleType={(editingRule as any).ruleType || activeTab}
         />
       )}
     </div>

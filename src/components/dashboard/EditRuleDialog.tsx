@@ -14,9 +14,10 @@ interface EditRuleDialogProps {
   onOpenChange: (open: boolean) => void;
   rule: any;
   onSuccess: () => void;
+  ruleType?: 'label' | 'draft' | 'auto-reply' | 'notification';
 }
 
-export const EditRuleDialog = ({ open, onOpenChange, rule, onSuccess }: EditRuleDialogProps) => {
+export const EditRuleDialog = ({ open, onOpenChange, rule, onSuccess, ruleType = 'label' }: EditRuleDialogProps) => {
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     label_to_apply: rule.label_to_apply || '',
@@ -24,8 +25,9 @@ export const EditRuleDialog = ({ open, onOpenChange, rule, onSuccess }: EditRule
     sender_pattern: rule.sender_pattern || '',
     keywords: Array.isArray(rule.keywords) ? rule.keywords.join(', ') : '',
     response_template: rule.response_template || '',
-    create_draft: rule.create_draft || false,
-    auto_reply: rule.auto_reply || false,
+    create_draft: rule.create_draft || ruleType === 'draft',
+    auto_reply: rule.auto_reply || ruleType === 'auto-reply',
+    notify_urgent: rule.notify_urgent || ruleType === 'notification',
     exclude_newsletters: rule.exclude_newsletters !== false,
     exclude_marketing: rule.exclude_marketing !== false,
   });
@@ -35,27 +37,66 @@ export const EditRuleDialog = ({ open, onOpenChange, rule, onSuccess }: EditRule
     setLoading(true);
 
     try {
-      const { error } = await supabase
-        .from('email_rules')
-        .update({
-          label_to_apply: formData.label_to_apply,
-          priority: formData.priority,
-          sender_pattern: formData.sender_pattern || null,
-          keywords: formData.keywords ? formData.keywords.split(',').map(k => k.trim()).filter(Boolean) : null,
-          response_template: formData.response_template || null,
-          create_draft: formData.create_draft,
-          auto_reply: formData.auto_reply,
-          exclude_newsletters: formData.exclude_newsletters,
-          exclude_marketing: formData.exclude_marketing,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', rule.id);
+      const ruleData: any = {
+        priority: formData.priority,
+        sender_pattern: formData.sender_pattern || null,
+        keywords: formData.keywords ? formData.keywords.split(',').map(k => k.trim()).filter(Boolean) : null,
+        exclude_newsletters: formData.exclude_newsletters,
+        exclude_marketing: formData.exclude_marketing,
+      };
+
+      // Type-specific fields
+      if (ruleType === 'label') {
+        ruleData.label_to_apply = formData.label_to_apply;
+        ruleData.create_draft = false;
+        ruleData.auto_reply = false;
+        ruleData.notify_urgent = false;
+        ruleData.response_template = null;
+      } else if (ruleType === 'draft') {
+        ruleData.label_to_apply = null;
+        ruleData.create_draft = true;
+        ruleData.auto_reply = false;
+        ruleData.notify_urgent = false;
+        ruleData.response_template = null;
+      } else if (ruleType === 'auto-reply') {
+        ruleData.label_to_apply = null;
+        ruleData.create_draft = false;
+        ruleData.auto_reply = true;
+        ruleData.notify_urgent = false;
+        ruleData.response_template = formData.response_template || null;
+      } else if (ruleType === 'notification') {
+        ruleData.label_to_apply = null;
+        ruleData.create_draft = false;
+        ruleData.auto_reply = false;
+        ruleData.notify_urgent = true;
+        ruleData.response_template = null;
+      }
+
+      let error;
+      if (rule.id) {
+        // Update existing rule
+        ruleData.updated_at = new Date().toISOString();
+        const result = await supabase
+          .from('email_rules')
+          .update(ruleData)
+          .eq('id', rule.id);
+        error = result.error;
+      } else {
+        // Create new rule
+        ruleData.user_id = rule.user_id;
+        ruleData.is_active = true;
+        ruleData.rule_order = 999; // Will be ordered later
+        const result = await supabase
+          .from('email_rules')
+          .insert([ruleData]);
+        error = result.error;
+      }
 
       if (error) throw error;
 
       toast({
-        title: 'Règle modifiée',
-        description: 'La règle a été mise à jour avec succès',
+        title: rule.id ? 'Règle modifiée' : 'Règle créée',
+        description: rule.id ? 'La règle a été mise à jour avec succès' : 'La règle a été créée avec succès',
       });
 
       onOpenChange(false);
@@ -75,23 +116,28 @@ export const EditRuleDialog = ({ open, onOpenChange, rule, onSuccess }: EditRule
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Modifier la règle</DialogTitle>
+          <DialogTitle>{rule.id ? 'Modifier' : 'Créer'} une règle</DialogTitle>
           <DialogDescription>
-            Modifiez les paramètres de la règle de classification
+            {ruleType === 'label' && 'Créez une règle pour appliquer automatiquement un label'}
+            {ruleType === 'draft' && 'Créez une règle pour générer automatiquement un brouillon de réponse'}
+            {ruleType === 'auto-reply' && 'Créez une règle pour envoyer automatiquement une réponse'}
+            {ruleType === 'notification' && 'Créez une règle pour recevoir des notifications urgentes'}
           </DialogDescription>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="label">Label à appliquer *</Label>
-            <Input
-              id="label"
-              value={formData.label_to_apply}
-              onChange={(e) => setFormData({ ...formData, label_to_apply: e.target.value })}
-              required
-              placeholder="Ex: Newsletter, Urgent, Client VIP"
-            />
-          </div>
+          {ruleType === 'label' && (
+            <div className="space-y-2">
+              <Label htmlFor="label">Label à appliquer *</Label>
+              <Input
+                id="label"
+                value={formData.label_to_apply}
+                onChange={(e) => setFormData({ ...formData, label_to_apply: e.target.value })}
+                required
+                placeholder="Ex: Newsletter, Urgent, Client VIP"
+              />
+            </div>
+          )}
 
           <div className="space-y-2">
             <Label htmlFor="priority">Priorité</Label>
@@ -133,91 +179,61 @@ export const EditRuleDialog = ({ open, onOpenChange, rule, onSuccess }: EditRule
             </p>
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="template">Modèle de réponse (optionnel)</Label>
-            <Textarea
-              id="template"
-              value={formData.response_template}
-              onChange={(e) => setFormData({ ...formData, response_template: e.target.value })}
-              placeholder="Modèle de réponse automatique..."
-              rows={4}
-            />
-          </div>
-
-          <div className="space-y-3 pt-2 border-t">
-            <Label className="text-base">Actions automatiques</Label>
-            
-            <div className="flex items-center space-x-2">
-              <Checkbox
-                id="create_draft"
-                checked={formData.create_draft}
-                onCheckedChange={(checked) => setFormData({ ...formData, create_draft: checked as boolean })}
+          {ruleType === 'auto-reply' && (
+            <div className="space-y-2">
+              <Label htmlFor="template">Modèle de réponse automatique *</Label>
+              <Textarea
+                id="template"
+                value={formData.response_template}
+                onChange={(e) => setFormData({ ...formData, response_template: e.target.value })}
+                placeholder="Votre modèle de réponse automatique..."
+                rows={4}
+                required
               />
-              <label
-                htmlFor="create_draft"
-                className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-              >
-                Créer un brouillon de réponse
-              </label>
             </div>
+          )}
 
-            <div className="flex items-center space-x-2">
-              <Checkbox
-                id="auto_reply"
-                checked={formData.auto_reply}
-                onCheckedChange={(checked) => setFormData({ ...formData, auto_reply: checked as boolean })}
-              />
-              <label
-                htmlFor="auto_reply"
-                className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-              >
-                Réponse automatique (à développer)
-              </label>
+          {(ruleType === 'draft' || ruleType === 'auto-reply') && (
+            <div className="space-y-3 pt-2 border-t">
+              <Label className="text-base">Exclusions</Label>
+              <p className="text-xs text-muted-foreground">Ne pas créer de brouillon/réponse pour :</p>
+              
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="exclude_newsletters"
+                  checked={formData.exclude_newsletters}
+                  onCheckedChange={(checked) => setFormData({ ...formData, exclude_newsletters: checked as boolean })}
+                />
+                <label
+                  htmlFor="exclude_newsletters"
+                  className="text-sm leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                >
+                  Newsletters
+                </label>
+              </div>
+
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="exclude_marketing"
+                  checked={formData.exclude_marketing}
+                  onCheckedChange={(checked) => setFormData({ ...formData, exclude_marketing: checked as boolean })}
+                />
+                <label
+                  htmlFor="exclude_marketing"
+                  className="text-sm leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                >
+                  Marketing / Publicités
+                </label>
+              </div>
             </div>
-
-            {(formData.create_draft || formData.auto_reply) && (
-              <>
-                <div className="pl-6 space-y-2 pt-2 border-l-2">
-                  <p className="text-xs text-muted-foreground mb-2">Exclure les brouillons/réponses pour :</p>
-                  
-                  <div className="flex items-center space-x-2">
-                    <Checkbox
-                      id="exclude_newsletters"
-                      checked={formData.exclude_newsletters}
-                      onCheckedChange={(checked) => setFormData({ ...formData, exclude_newsletters: checked as boolean })}
-                    />
-                    <label
-                      htmlFor="exclude_newsletters"
-                      className="text-sm leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                    >
-                      Newsletters
-                    </label>
-                  </div>
-
-                  <div className="flex items-center space-x-2">
-                    <Checkbox
-                      id="exclude_marketing"
-                      checked={formData.exclude_marketing}
-                      onCheckedChange={(checked) => setFormData({ ...formData, exclude_marketing: checked as boolean })}
-                    />
-                    <label
-                      htmlFor="exclude_marketing"
-                      className="text-sm leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                    >
-                      Marketing / Publicités
-                    </label>
-                  </div>
-                </div>
-              </>
-            )}
-          </div>
+          )}
 
           <div className="flex justify-end gap-2 pt-4 border-t">
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Annuler
             </Button>
             <Button type="submit" disabled={loading}>
-              {loading ? 'Modification...' : 'Enregistrer'}
+              {loading ? (rule.id ? 'Modification...' : 'Création...') : (rule.id ? 'Enregistrer' : 'Créer')}
             </Button>
           </div>
         </form>
