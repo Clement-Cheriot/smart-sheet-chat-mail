@@ -4,6 +4,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Plus, Trash2, Edit, Upload, Download, Power, Trash } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { EditRuleDialog } from './EditRuleDialog';
@@ -266,9 +267,102 @@ export const EmailRules = () => {
     }
   };
 
+  const renderRulesList = (filteredRules: Rule[]) => {
+    if (filteredRules.length === 0) {
+      return (
+        <div className="text-center py-12 border-2 border-dashed rounded-lg">
+          <p className="text-muted-foreground mb-4">Aucune règle dans cette catégorie</p>
+        </div>
+      );
+    }
+
+    return (
+      <div className="space-y-3">
+        {filteredRules.map((rule) => (
+          <div
+            key={rule.id}
+            className="p-4 border rounded-lg hover:bg-accent/50 transition-colors"
+          >
+            <div className="flex items-start justify-between gap-4">
+              <div className="flex-1">
+                <div className="flex items-center gap-2 mb-2 flex-wrap">
+                  <Badge variant={rule.is_active ? 'default' : 'secondary'}>
+                    {rule.is_active ? 'Active' : 'Inactive'}
+                  </Badge>
+                  <Badge variant={getPriorityColor(rule.priority)}>
+                    {rule.priority}
+                  </Badge>
+                  {rule.create_draft && (
+                    <Badge variant="outline" className="text-blue-600 border-blue-600">
+                      Brouillon
+                    </Badge>
+                  )}
+                  {rule.auto_reply && (
+                    <Badge variant="outline" className="text-green-600 border-green-600">
+                      Réponse auto
+                    </Badge>
+                  )}
+                </div>
+                <p className="font-medium mb-1">
+                  Expéditeur : {rule.sender_pattern || 'Tous'}
+                </p>
+                {rule.keywords && rule.keywords.length > 0 && (
+                  <p className="text-sm text-muted-foreground mb-2">
+                    Mots-clés : {rule.keywords.join(', ')}
+                  </p>
+                )}
+                <p className="text-sm mb-1">
+                  Label : <span className="font-medium">{rule.label_to_apply}</span>
+                </p>
+                {(rule.exclude_newsletters || rule.exclude_marketing) && (
+                  <p className="text-xs text-muted-foreground">
+                    Exclusions : {[
+                      rule.exclude_newsletters && 'Newsletters',
+                      rule.exclude_marketing && 'Marketing'
+                    ].filter(Boolean).join(', ')}
+                  </p>
+                )}
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={() => toggleRule(rule.id, rule.is_active)}
+                  title={rule.is_active ? 'Désactiver' : 'Activer'}
+                >
+                  <Power className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={() => setEditingRule(rule)}
+                  title="Modifier"
+                >
+                  <Edit className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={() => deleteRule(rule.id)}
+                  title="Supprimer"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  };
+
   if (loading) {
     return <div className="text-center py-8 text-muted-foreground">Chargement...</div>;
   }
+
+  const labelRules = rules.filter(r => r.label_to_apply && !r.create_draft && !r.auto_reply);
+  const draftRules = rules.filter(r => r.create_draft);
+  const autoReplyRules = rules.filter(r => r.auto_reply);
 
   return (
     <div className="space-y-4">
@@ -324,82 +418,38 @@ export const EmailRules = () => {
           </Button>
         </div>
       ) : (
-        <div className="space-y-3">
-          {rules.map((rule) => (
-            <div
-              key={rule.id}
-              className="p-4 border rounded-lg hover:bg-accent/50 transition-colors"
-            >
-              <div className="flex items-start justify-between gap-4">
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-2 flex-wrap">
-                    <Badge variant={rule.is_active ? 'default' : 'secondary'}>
-                      {rule.is_active ? 'Active' : 'Inactive'}
-                    </Badge>
-                    <Badge variant={getPriorityColor(rule.priority)}>
-                      {rule.priority}
-                    </Badge>
-                    {rule.create_draft && (
-                      <Badge variant="outline" className="text-blue-600 border-blue-600">
-                        Brouillon
-                      </Badge>
-                    )}
-                    {rule.auto_reply && (
-                      <Badge variant="outline" className="text-green-600 border-green-600">
-                        Réponse auto
-                      </Badge>
-                    )}
-                  </div>
-                  <p className="font-medium mb-1">
-                    Expéditeur : {rule.sender_pattern || 'Tous'}
-                  </p>
-                  {rule.keywords && rule.keywords.length > 0 && (
-                    <p className="text-sm text-muted-foreground mb-2">
-                      Mots-clés : {rule.keywords.join(', ')}
-                    </p>
-                  )}
-                  <p className="text-sm mb-1">
-                    Label : <span className="font-medium">{rule.label_to_apply}</span>
-                  </p>
-                  {(rule.exclude_newsletters || rule.exclude_marketing) && (
-                    <p className="text-xs text-muted-foreground">
-                      Exclusions : {[
-                        rule.exclude_newsletters && 'Newsletters',
-                        rule.exclude_marketing && 'Marketing'
-                      ].filter(Boolean).join(', ')}
-                    </p>
-                  )}
-                </div>
-                <div className="flex gap-2">
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    onClick={() => toggleRule(rule.id, rule.is_active)}
-                    title={rule.is_active ? 'Désactiver' : 'Activer'}
-                  >
-                    <Power className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    onClick={() => setEditingRule(rule)}
-                    title="Modifier"
-                  >
-                    <Edit className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    onClick={() => deleteRule(rule.id)}
-                    title="Supprimer"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
+        <Tabs defaultValue="all" className="w-full">
+          <TabsList className="grid w-full grid-cols-4">
+            <TabsTrigger value="all">
+              Toutes ({rules.length})
+            </TabsTrigger>
+            <TabsTrigger value="label">
+              Label ({labelRules.length})
+            </TabsTrigger>
+            <TabsTrigger value="draft">
+              Brouillon ({draftRules.length})
+            </TabsTrigger>
+            <TabsTrigger value="auto-reply">
+              Réponse auto ({autoReplyRules.length})
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="all" className="mt-4">
+            {renderRulesList(rules)}
+          </TabsContent>
+
+          <TabsContent value="label" className="mt-4">
+            {renderRulesList(labelRules)}
+          </TabsContent>
+
+          <TabsContent value="draft" className="mt-4">
+            {renderRulesList(draftRules)}
+          </TabsContent>
+
+          <TabsContent value="auto-reply" className="mt-4">
+            {renderRulesList(autoReplyRules)}
+          </TabsContent>
+        </Tabs>
       )}
 
       {editingRule && (
