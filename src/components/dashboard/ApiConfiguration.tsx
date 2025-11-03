@@ -59,6 +59,8 @@ export const ApiConfiguration = () => {
         .upsert({
           user_id: user?.id,
           ...config,
+        }, {
+          onConflict: 'user_id'
         });
 
       if (error) throw error;

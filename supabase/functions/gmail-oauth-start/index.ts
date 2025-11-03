@@ -20,11 +20,12 @@ serve(async (req) => {
 
     const redirectUri = `${supabaseUrl}/functions/v1/gmail-oauth-callback`;
     
-    // Gmail OAuth scopes needed
+    // Gmail OAuth scopes needed + Google Sheets for rules sync
     const scopes = [
       'https://www.googleapis.com/auth/gmail.readonly',
       'https://www.googleapis.com/auth/gmail.modify',
       'https://www.googleapis.com/auth/gmail.compose',
+      'https://www.googleapis.com/auth/spreadsheets.readonly',
     ].join(' ');
 
     // Get user ID from auth header
