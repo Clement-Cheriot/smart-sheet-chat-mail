@@ -153,6 +153,39 @@ export const EmailSummary = () => {
     }
   };
 
+  const sendLast24hSummary = async () => {
+    setLoading(true);
+    try {
+      const now = new Date();
+      const start = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+
+      const { data, error } = await supabase.functions.invoke('email-summary', {
+        body: {
+          userId: user?.id,
+          period: 'custom',
+          startDate: start.toISOString(),
+          endDate: now.toISOString(),
+        },
+      });
+
+      if (error) throw error;
+
+      await supabase.from('email_summaries').insert({
+        user_id: user?.id,
+        period_start: start.toISOString(),
+        period_end: now.toISOString(),
+        summary_content: (data as any)?.summary,
+      });
+
+      toast({ title: 'Succès', description: 'Résumé des dernières 24h envoyé' });
+    } catch (error: any) {
+      console.error('Error sending 24h summary:', error);
+      toast({ title: 'Erreur', description: error.message || "Échec de l'envoi du résumé 24h", variant: 'destructive' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <Card>
@@ -255,10 +288,16 @@ export const EmailSummary = () => {
             </div>
           </div>
 
-          <Button onClick={sendManualSummary} disabled={loading} className="w-full">
-            <Send className="h-4 w-4 mr-2" />
-            {loading ? 'Envoi en cours...' : 'Envoyer le résumé maintenant'}
-          </Button>
+          <div className="grid grid-cols-1 gap-2">
+            <Button onClick={sendManualSummary} disabled={loading} className="w-full">
+              <Send className="h-4 w-4 mr-2" />
+              {loading ? 'Envoi en cours...' : 'Envoyer le résumé maintenant'}
+            </Button>
+            <Button onClick={sendLast24hSummary} disabled={loading} variant="secondary" className="w-full">
+              <Send className="h-4 w-4 mr-2" />
+              {loading ? 'Test 24h en cours...' : 'Tester le résumé des dernières 24h'}
+            </Button>
+          </div>
         </CardContent>
       </Card>
     </div>

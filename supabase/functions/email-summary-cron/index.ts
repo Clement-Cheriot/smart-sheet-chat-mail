@@ -27,7 +27,12 @@ serve(async (req) => {
 
   try {
     const now = new Date();
-    const currentHHmm = new Date(now.toISOString()).toISOString().substring(11, 16); // UTC HH:mm
+    const currentHHmm = new Intl.DateTimeFormat('fr-FR', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+      timeZone: 'Europe/Paris',
+    }).format(now); // Europe/Paris HH:mm
 
     // Load active schedules
     const { data: schedules, error: schedulesError } = await supabase
