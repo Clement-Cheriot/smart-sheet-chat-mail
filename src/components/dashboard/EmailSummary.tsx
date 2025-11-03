@@ -105,12 +105,16 @@ export const EmailSummary = () => {
   const sendManualSummary = async () => {
     console.log('Manual dates:', { manualStartDate, manualEndDate });
     
-    if (!manualStartDate || !manualEndDate) {
+    // Fallback: read from DOM if state is empty (some browsers can miss onChange)
+    const startVal = manualStartDate || (document.getElementById('start-date') as HTMLInputElement)?.value || '';
+    const endVal = manualEndDate || (document.getElementById('end-date') as HTMLInputElement)?.value || '';
+
+    if (!startVal || !endVal) {
       toast({ title: 'Erreur', description: 'Veuillez sélectionner les dates', variant: 'destructive' });
       return;
     }
 
-    if (new Date(manualStartDate) > new Date(manualEndDate)) {
+    if (new Date(startVal) > new Date(endVal)) {
       toast({ title: 'Erreur', description: 'La date de début doit être antérieure à la date de fin', variant: 'destructive' });
       return;
     }
@@ -121,8 +125,8 @@ export const EmailSummary = () => {
         body: {
           userId: user?.id,
           period: 'custom',
-          startDate: new Date(manualStartDate).toISOString(),
-          endDate: new Date(manualEndDate).toISOString(),
+          startDate: new Date(startVal).toISOString(),
+          endDate: new Date(endVal).toISOString(),
         },
       });
 
@@ -131,8 +135,8 @@ export const EmailSummary = () => {
       // Save summary to database
       await supabase.from('email_summaries').insert({
         user_id: user?.id,
-        period_start: new Date(manualStartDate).toISOString(),
-        period_end: new Date(manualEndDate).toISOString(),
+        period_start: new Date(startVal).toISOString(),
+        period_end: new Date(endVal).toISOString(),
         summary_content: data.summary, // textual summary returned by function
       });
 
