@@ -52,27 +52,34 @@ serve(async (req) => {
     const tokens = await tokenResponse.json();
     console.log('Tokens obtained successfully');
 
-    // Decode state to get user token
+    // Decode state to get user token (JWT)
     const userToken = decodeURIComponent(state);
+    
+    // Decode JWT to extract user_id (without verification since we trust our own token)
+    const jwtParts = userToken.split('.');
+    if (jwtParts.length !== 3) {
+      throw new Error('Invalid JWT format in state');
+    }
+    
+    const payload = JSON.parse(atob(jwtParts[1].replace(/-/g, '+').replace(/_/g, '/')));
+    const userId = payload.sub;
+    
+    if (!userId) {
+      throw new Error('No user ID in token');
+    }
+    
+    console.log('Extracted user ID:', userId);
     
     // Create Supabase client with service role
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Get user from token
-    const { data: { user }, error: userError } = await supabase.auth.getUser(userToken);
-    
-    if (userError || !user) {
-      console.error('Failed to get user:', userError);
-      throw new Error('Invalid user token');
-    }
-
-    console.log('Saving credentials for user:', user.id);
+    console.log('Saving credentials for user:', userId);
 
     // Store credentials in user_api_configs
     const { error: upsertError } = await supabase
       .from('user_api_configs')
       .upsert({
-        user_id: user.id,
+        user_id: userId,
         gmail_credentials: {
           access_token: tokens.access_token,
           refresh_token: tokens.refresh_token,

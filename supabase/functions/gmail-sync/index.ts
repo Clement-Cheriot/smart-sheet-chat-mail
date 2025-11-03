@@ -71,10 +71,61 @@ serve(async (req) => {
 
     // Process each message through email-processor
     for (const message of messages) {
-      const { data: msgData } = await supabase.functions.invoke('email-processor', {
-        body: { userId, messageId: message.id },
-      });
-      console.log(`Processed message ${message.id}:`, msgData);
+      try {
+        // Fetch full message details
+        const msgResponse = await fetch(
+          `https://gmail.googleapis.com/gmail/v1/users/me/messages/${message.id}`,
+          { headers: { 'Authorization': `Bearer ${accessToken}` } }
+        );
+        
+        if (!msgResponse.ok) {
+          console.error(`Failed to fetch message ${message.id}: ${msgResponse.status}`);
+          continue;
+        }
+
+        const fullMessage = await msgResponse.json();
+        
+        // Extract headers
+        const headers = fullMessage.payload?.headers || [];
+        const getHeader = (name: string) => headers.find((h: any) => h.name.toLowerCase() === name.toLowerCase())?.value || '';
+        
+        const sender = getHeader('from');
+        const subject = getHeader('subject');
+        const date = getHeader('date');
+        
+        // Extract body
+        let body = '';
+        if (fullMessage.payload?.body?.data) {
+          body = atob(fullMessage.payload.body.data.replace(/-/g, '+').replace(/_/g, '/'));
+        } else if (fullMessage.payload?.parts) {
+          for (const part of fullMessage.payload.parts) {
+            if (part.mimeType === 'text/plain' && part.body?.data) {
+              body = atob(part.body.data.replace(/-/g, '+').replace(/_/g, '/'));
+              break;
+            }
+          }
+        }
+
+        // Process email
+        const { data: msgData, error: processError } = await supabase.functions.invoke('email-processor', {
+          body: {
+            userId,
+            messageId: message.id,
+            sender,
+            subject,
+            body,
+            receivedAt: date || new Date().toISOString(),
+          }
+        });
+        
+        if (processError) {
+          console.error(`Error processing message ${message.id}:`, processError);
+        } else {
+          console.log(`Processed message ${message.id}:`, msgData);
+        }
+      } catch (err) {
+        console.error(`Exception processing message ${message.id}:`, err);
+      }
     }
 
     return new Response(
