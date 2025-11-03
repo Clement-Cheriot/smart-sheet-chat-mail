@@ -515,97 +515,87 @@ export const EmailRules = () => {
         Gérez vos règles d'automatisation d'emails. La priorité (high/medium/low) influence le score de l'email.
       </p>
 
-      {rules.length === 0 ? (
-        <div className="text-center py-12 border-2 border-dashed rounded-lg">
-          <p className="text-muted-foreground mb-4">Aucune règle configurée</p>
-          <Button onClick={() => setEditingRule({} as Rule)}>
+      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)} className="w-full">
+        <TabsList className="grid w-full grid-cols-4">
+          <TabsTrigger value="label">
+            Label ({labelRules.length})
+          </TabsTrigger>
+          <TabsTrigger value="draft">
+            Brouillon ({draftRules.length})
+          </TabsTrigger>
+          <TabsTrigger value="auto-reply">
+            Réponse auto ({autoReplyRules.length})
+          </TabsTrigger>
+          <TabsTrigger value="notification">
+            Notification ({notificationRules.length})
+          </TabsTrigger>
+        </TabsList>
+
+        <div className="flex gap-2 mt-4 mb-4">
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".xlsx,.xls"
+            onChange={handleFileImport}
+            className="hidden"
+          />
+          <Button 
+            variant="outline" 
+            onClick={createExampleRules}
+            size="sm"
+          >
+            <Wand2 className="mr-2 h-4 w-4" />
+            Exemples
+          </Button>
+          <Button 
+            variant="outline" 
+            onClick={downloadTemplate}
+            size="sm"
+          >
+            <Download className="mr-2 h-4 w-4" />
+            Template
+          </Button>
+          <Button 
+            variant="outline" 
+            onClick={() => fileInputRef.current?.click()}
+            disabled={importing}
+            size="sm"
+          >
+            <Upload className="mr-2 h-4 w-4" />
+            {importing ? 'Import...' : 'Importer'}
+          </Button>
+          {getCurrentRules().length > 0 && (
+            <Button 
+              variant="outline" 
+              onClick={clearCurrentRules}
+              size="sm"
+            >
+              <Trash className="mr-2 h-4 w-4" />
+              Vider ({getCurrentRules().length})
+            </Button>
+          )}
+          <Button onClick={() => setEditingRule({} as Rule)} size="sm">
             <Plus className="mr-2 h-4 w-4" />
-            Créer ma première règle
+            Nouvelle règle
           </Button>
         </div>
-      ) : (
-        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)} className="w-full">
-          <TabsList className="grid w-full grid-cols-4">
-            <TabsTrigger value="label">
-              Label ({labelRules.length})
-            </TabsTrigger>
-            <TabsTrigger value="draft">
-              Brouillon ({draftRules.length})
-            </TabsTrigger>
-            <TabsTrigger value="auto-reply">
-              Réponse auto ({autoReplyRules.length})
-            </TabsTrigger>
-            <TabsTrigger value="notification">
-              Notification ({notificationRules.length})
-            </TabsTrigger>
-          </TabsList>
 
-          <div className="flex gap-2 mt-4 mb-4">
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept=".xlsx,.xls"
-              onChange={handleFileImport}
-              className="hidden"
-            />
-            <Button 
-              variant="outline" 
-              onClick={createExampleRules}
-              size="sm"
-            >
-              <Wand2 className="mr-2 h-4 w-4" />
-              Exemples
-            </Button>
-            <Button 
-              variant="outline" 
-              onClick={downloadTemplate}
-              size="sm"
-            >
-              <Download className="mr-2 h-4 w-4" />
-              Template
-            </Button>
-            <Button 
-              variant="outline" 
-              onClick={() => fileInputRef.current?.click()}
-              disabled={importing}
-              size="sm"
-            >
-              <Upload className="mr-2 h-4 w-4" />
-              {importing ? 'Import...' : 'Importer'}
-            </Button>
-            {getCurrentRules().length > 0 && (
-              <Button 
-                variant="outline" 
-                onClick={clearCurrentRules}
-                size="sm"
-              >
-                <Trash className="mr-2 h-4 w-4" />
-                Vider ({getCurrentRules().length})
-              </Button>
-            )}
-            <Button onClick={() => setEditingRule({} as Rule)} size="sm">
-              <Plus className="mr-2 h-4 w-4" />
-              Nouvelle règle
-            </Button>
-          </div>
+        <TabsContent value="label" className="mt-0">
+          {renderRulesList(labelRules)}
+        </TabsContent>
 
-          <TabsContent value="label" className="mt-0">
-            {renderRulesList(labelRules)}
-          </TabsContent>
+        <TabsContent value="draft" className="mt-0">
+          {renderRulesList(draftRules)}
+        </TabsContent>
 
-          <TabsContent value="draft" className="mt-0">
-            {renderRulesList(draftRules)}
-          </TabsContent>
+        <TabsContent value="auto-reply" className="mt-0">
+          {renderRulesList(autoReplyRules)}
+        </TabsContent>
 
-          <TabsContent value="auto-reply" className="mt-0">
-            {renderRulesList(autoReplyRules)}
-          </TabsContent>
-
-          <TabsContent value="notification" className="mt-0">
-            {renderRulesList(notificationRules)}
-          </TabsContent>
-        </Tabs>
-      )}
+        <TabsContent value="notification" className="mt-0">
+          {renderRulesList(notificationRules)}
+        </TabsContent>
+      </Tabs>
 
       {editingRule && (
         <EditRuleDialog
