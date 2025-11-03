@@ -4,7 +4,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
-import { Plus, Trash2, Edit, Upload } from 'lucide-react';
+import { Plus, Trash2, Edit, Upload, Download } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
 interface Rule {
@@ -71,6 +71,51 @@ export const EmailRules = () => {
         variant: 'destructive',
       });
     }
+  };
+
+  const downloadTemplate = () => {
+    // Create template data
+    const templateData = [
+      {
+        rule_id: 'rule_001',
+        classification: 'Urgent',
+        priority: 'high',
+        enables: true,
+        conditions: '{"sender_pattern":".*@client.com","keywords":["urgent","important"],"auto_action":"create_draft"}',
+        description: 'Emails urgents des clients'
+      },
+      {
+        rule_id: 'rule_002',
+        classification: 'Newsletter',
+        priority: 'low',
+        enables: true,
+        conditions: '{"sender_pattern":".*@newsletter.com","keywords":["newsletter","abonnement"],"auto_action":null}',
+        description: 'Newsletters marketing'
+      }
+    ];
+
+    // Create workbook and worksheet
+    const worksheet = XLSX.utils.json_to_sheet(templateData);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Règles');
+
+    // Set column widths
+    worksheet['!cols'] = [
+      { wch: 12 }, // rule_id
+      { wch: 20 }, // classification
+      { wch: 10 }, // priority
+      { wch: 10 }, // enables
+      { wch: 60 }, // conditions
+      { wch: 30 }  // description
+    ];
+
+    // Download
+    XLSX.writeFile(workbook, 'template_regles_email.xlsx');
+    
+    toast({
+      title: 'Template téléchargé',
+      description: 'Remplissez le fichier et importez-le',
+    });
   };
 
   const handleFileImport = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -161,11 +206,18 @@ export const EmailRules = () => {
           />
           <Button 
             variant="outline" 
+            onClick={downloadTemplate}
+          >
+            <Download className="mr-2 h-4 w-4" />
+            Template
+          </Button>
+          <Button 
+            variant="outline" 
             onClick={() => fileInputRef.current?.click()}
             disabled={importing}
           >
             <Upload className="mr-2 h-4 w-4" />
-            {importing ? 'Import en cours...' : 'Importer Excel'}
+            {importing ? 'Import...' : 'Importer'}
           </Button>
           <Button>
             <Plus className="mr-2 h-4 w-4" />
