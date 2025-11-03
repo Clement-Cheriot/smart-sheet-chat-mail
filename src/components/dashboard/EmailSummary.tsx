@@ -92,8 +92,15 @@ export const EmailSummary = () => {
   };
 
   const sendManualSummary = async () => {
+    console.log('Manual dates:', { manualStartDate, manualEndDate });
+    
     if (!manualStartDate || !manualEndDate) {
       toast({ title: 'Erreur', description: 'Veuillez sélectionner les dates', variant: 'destructive' });
+      return;
+    }
+
+    if (new Date(manualStartDate) > new Date(manualEndDate)) {
+      toast({ title: 'Erreur', description: 'La date de début doit être antérieure à la date de fin', variant: 'destructive' });
       return;
     }
 
@@ -103,8 +110,8 @@ export const EmailSummary = () => {
         body: {
           userId: user?.id,
           period: 'custom',
-          startDate: manualStartDate,
-          endDate: manualEndDate,
+          startDate: new Date(manualStartDate).toISOString(),
+          endDate: new Date(manualEndDate).toISOString(),
         },
       });
 
@@ -113,17 +120,17 @@ export const EmailSummary = () => {
       // Save summary to database
       await supabase.from('email_summaries').insert({
         user_id: user?.id,
-        period_start: manualStartDate,
-        period_end: manualEndDate,
+        period_start: new Date(manualStartDate).toISOString(),
+        period_end: new Date(manualEndDate).toISOString(),
         summary_content: data.summary,
       });
 
       toast({ title: 'Succès', description: 'Résumé envoyé sur WhatsApp' });
       setManualStartDate('');
       setManualEndDate('');
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error sending summary:', error);
-      toast({ title: 'Erreur', description: 'Impossible d\'envoyer le résumé', variant: 'destructive' });
+      toast({ title: 'Erreur', description: error.message || 'Impossible d\'envoyer le résumé', variant: 'destructive' });
     } finally {
       setLoading(false);
     }
@@ -199,8 +206,16 @@ export const EmailSummary = () => {
                 id="start-date"
                 type="datetime-local"
                 value={manualStartDate}
-                onChange={(e) => setManualStartDate(e.target.value)}
+                onChange={(e) => {
+                  console.log('Start date changed:', e.target.value);
+                  setManualStartDate(e.target.value);
+                }}
               />
+              {manualStartDate && (
+                <p className="text-xs text-muted-foreground">
+                  {new Date(manualStartDate).toLocaleString('fr-FR')}
+                </p>
+              )}
             </div>
             <div className="space-y-2">
               <Label htmlFor="end-date">Date de fin</Label>
@@ -208,8 +223,16 @@ export const EmailSummary = () => {
                 id="end-date"
                 type="datetime-local"
                 value={manualEndDate}
-                onChange={(e) => setManualEndDate(e.target.value)}
+                onChange={(e) => {
+                  console.log('End date changed:', e.target.value);
+                  setManualEndDate(e.target.value);
+                }}
               />
+              {manualEndDate && (
+                <p className="text-xs text-muted-foreground">
+                  {new Date(manualEndDate).toLocaleString('fr-FR')}
+                </p>
+              )}
             </div>
           </div>
 
