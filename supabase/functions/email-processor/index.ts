@@ -171,11 +171,22 @@ serve(async (req) => {
     // Send WhatsApp notification if high priority OR AI says it's urgent
     if (priorityScore >= 8 || aiAnalysis.is_urgent_whatsapp) {
       console.log('Sending WhatsApp notification');
+      
+      // Build suggested action message
+      let actionText = 'Consulter le mail';
+      if (aiAnalysis.suggested_action === 'urgent_response') {
+        actionText = 'Répondre de manière urgente';
+      } else if (aiAnalysis.suggested_action === 'reply') {
+        actionText = 'Répondre au mail';
+      } else if (aiAnalysis.needs_calendar_action) {
+        actionText = 'Ajouter l\'événement au calendrier';
+      }
+      
       await supabase.functions.invoke('whatsapp-sender', {
         body: {
           userId: emailData.userId,
           type: 'alert',
-          message: `🚨 Email urgent !\nDe: ${emailData.sender}\nSujet: ${emailData.subject}\nPriorité: ${priorityScore}/10\n\nRésumé: ${aiAnalysis.body_summary}`,
+          message: `🚨 Email urgent détecté!\n\nDe: ${emailData.sender}\nSujet: ${emailData.subject}\nPriorité: ${priorityScore}/10\n\n📋 Résumé: ${aiAnalysis.body_summary}\n\n💡 Action suggérée: ${actionText}`,
         }
       });
 
@@ -231,23 +242,23 @@ async function analyzeEmailWithAI(
   apiKey: string
 ): Promise<any> {
   try {
-    const prompt = `Analyze this email and provide detailed structured information:
+    const prompt = `Analyse cet email et fournis des informations structurées détaillées EN FRANÇAIS:
 
-From: ${sender}
-Subject: ${subject}
-Body: ${body.substring(0, 1000)}
+De: ${sender}
+Sujet: ${subject}
+Corps: ${body.substring(0, 1000)}
 
-Provide a JSON response with:
+Fournis une réponse JSON avec:
 1. sentiment: positive/neutral/negative
-2. urgency: 1-10 scale
+2. urgency: échelle de 1 à 10
 3. category: work/personal/newsletter/spam/billing/support/other
-4. key_entities: array of important names, dates, amounts mentioned
+4. key_entities: tableau des noms importants, dates, montants mentionnés
 5. suggested_action: reply/forward/archive/review/urgent_response
-6. body_summary: Brief 2-3 sentence summary of the email content
-7. reasoning: Explain your analysis and why you chose these classifications
-8. suggested_label: If this doesn't fit existing categories, suggest a new label name
-9. needs_calendar_action: boolean - does this mention a meeting/event that should be calendared?
-10. is_urgent_whatsapp: boolean - is this urgent enough to warrant immediate WhatsApp notification?`;
+6. body_summary: Résumé bref en 2-3 phrases du contenu de l'email EN FRANÇAIS
+7. reasoning: Explique ton analyse et pourquoi tu as choisi ces classifications EN FRANÇAIS
+8. suggested_label: Si cela ne correspond à aucune catégorie existante, suggère un nouveau nom de label
+9. needs_calendar_action: boolean - est-ce que cela mentionne une réunion/événement à mettre au calendrier?
+10. is_urgent_whatsapp: boolean - est-ce suffisamment urgent pour justifier une notification WhatsApp immédiate?`;
 
     const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
@@ -260,7 +271,7 @@ Provide a JSON response with:
         messages: [
           {
             role: 'system',
-            content: 'You are an email analysis assistant. Always respond with valid JSON.',
+            content: 'Tu es un assistant d\'analyse d\'emails. Réponds toujours en français avec du JSON valide.',
           },
           {
             role: 'user',

@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
-import { Plus, Trash2, Edit } from 'lucide-react';
+import { Plus, Trash2, Edit, Upload } from 'lucide-react';
+import * as XLSX from 'xlsx';
 
 interface Rule {
   id: string;
@@ -18,8 +19,10 @@ interface Rule {
 export const EmailRules = () => {
   const [rules, setRules] = useState<Rule[]>([]);
   const [loading, setLoading] = useState(true);
+  const [importing, setImporting] = useState(false);
   const { user } = useAuth();
   const { toast } = useToast();
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (user) {
@@ -70,6 +73,63 @@ export const EmailRules = () => {
     }
   };
 
+  const handleFileImport = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setImporting(true);
+    try {
+      const data = await file.arrayBuffer();
+      const workbook = XLSX.read(data);
+      const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+      const jsonData = XLSX.utils.sheet_to_json(worksheet);
+
+      // Format: rule_id, classification, priority, enables, conditions, description
+      const newRules = jsonData.map((row: any, index: number) => {
+        let conditions: any = {};
+        try {
+          conditions = typeof row.conditions === 'string' ? JSON.parse(row.conditions) : row.conditions || {};
+        } catch (e) {
+          console.error('Error parsing conditions for row:', row, e);
+        }
+
+        return {
+          user_id: user?.id,
+          sender_pattern: conditions.sender_pattern || null,
+          keywords: conditions.keywords || [],
+          label_to_apply: row.classification || 'Imported',
+          priority: row.priority?.toLowerCase() || 'medium',
+          auto_action: conditions.auto_action || null,
+          is_active: row.enables === true || row.enables === 'true' || row.enables === 1,
+          rule_order: index,
+        };
+      });
+
+      const { error } = await supabase
+        .from('email_rules')
+        .insert(newRules);
+
+      if (error) throw error;
+
+      toast({
+        title: 'Import réussi',
+        description: `${newRules.length} règles importées`,
+      });
+
+      loadRules();
+    } catch (error: any) {
+      console.error('Import error:', error);
+      toast({
+        title: 'Erreur d\'import',
+        description: error.message,
+        variant: 'destructive',
+      });
+    } finally {
+      setImporting(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
   const getPriorityColor = (priority: string): "default" | "destructive" | "outline" | "secondary" => {
     switch (priority) {
       case 'high':
@@ -91,10 +151,27 @@ export const EmailRules = () => {
         <p className="text-sm text-muted-foreground">
           Gérez vos règles d'automatisation d'emails
         </p>
-        <Button>
-          <Plus className="mr-2 h-4 w-4" />
-          Nouvelle règle
-        </Button>
+        <div className="flex gap-2">
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".xlsx,.xls"
+            onChange={handleFileImport}
+            className="hidden"
+          />
+          <Button 
+            variant="outline" 
+            onClick={() => fileInputRef.current?.click()}
+            disabled={importing}
+          >
+            <Upload className="mr-2 h-4 w-4" />
+            {importing ? 'Import en cours...' : 'Importer Excel'}
+          </Button>
+          <Button>
+            <Plus className="mr-2 h-4 w-4" />
+            Nouvelle règle
+          </Button>
+        </div>
       </div>
 
       {rules.length === 0 ? (

@@ -17,6 +17,8 @@ export const WebhookTester = () => {
   });
   const [testing, setTesting] = useState(false);
   const [result, setResult] = useState<any>(null);
+  const [syncing, setSyncing] = useState(false);
+  const [syncingEmails, setSyncingEmails] = useState(false);
   const { user } = useAuth();
   const { toast } = useToast();
 
@@ -64,6 +66,7 @@ export const WebhookTester = () => {
   };
 
   const syncRules = async () => {
+    setSyncing(true);
     try {
       const { data, error } = await supabase.functions.invoke('sync-sheets-rules', {
         body: { userId: user?.id }
@@ -81,10 +84,13 @@ export const WebhookTester = () => {
         description: error.message,
         variant: 'destructive',
       });
+    } finally {
+      setSyncing(false);
     }
   };
 
   const syncEmails = async () => {
+    setSyncingEmails(true);
     try {
       const { data, error } = await supabase.functions.invoke('gmail-sync', {
         body: { userId: user?.id }
@@ -102,6 +108,8 @@ export const WebhookTester = () => {
         description: error.message,
         variant: 'destructive',
       });
+    } finally {
+      setSyncingEmails(false);
     }
   };
 
@@ -198,9 +206,14 @@ export const WebhookTester = () => {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <Button onClick={syncRules} variant="outline" className="w-full">
-            <RefreshCw className="mr-2 h-4 w-4" />
-            Synchroniser les règles
+          <Button 
+            onClick={syncRules} 
+            variant="outline" 
+            className="w-full"
+            disabled={syncing}
+          >
+            <RefreshCw className={`mr-2 h-4 w-4 ${syncing ? 'animate-spin' : ''}`} />
+            {syncing ? 'Synchronisation...' : 'Synchroniser les règles'}
           </Button>
           <p className="text-xs text-muted-foreground mt-2">
             Format: rule_id | classification | priority | enables | conditions | description
@@ -216,9 +229,14 @@ export const WebhookTester = () => {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <Button onClick={syncEmails} variant="outline" className="w-full">
-            <RefreshCw className="mr-2 h-4 w-4" />
-            Récupérer les nouveaux emails
+          <Button 
+            onClick={syncEmails} 
+            variant="outline" 
+            className="w-full"
+            disabled={syncingEmails}
+          >
+            <RefreshCw className={`mr-2 h-4 w-4 ${syncingEmails ? 'animate-spin' : ''}`} />
+            {syncingEmails ? 'Récupération en cours...' : 'Récupérer les nouveaux emails'}
           </Button>
           <p className="text-xs text-muted-foreground mt-2">
             Les emails seront traités et ajoutés à l'historique
