@@ -463,58 +463,58 @@ export const EmailRules = () => {
   const labelRules = rules.filter(r => r.label_to_apply && !r.create_draft && !r.auto_reply);
   const draftRules = rules.filter(r => r.create_draft);
   const autoReplyRules = rules.filter(r => r.auto_reply);
+  const notificationRules = rules.filter(r => r.notify_urgent);
+
+  const [activeTab, setActiveTab] = useState<'label' | 'draft' | 'auto-reply' | 'notification'>('label');
+
+  const getCurrentRules = () => {
+    switch (activeTab) {
+      case 'label':
+        return labelRules;
+      case 'draft':
+        return draftRules;
+      case 'auto-reply':
+        return autoReplyRules;
+      case 'notification':
+        return notificationRules;
+      default:
+        return [];
+    }
+  };
+
+  const clearCurrentRules = async () => {
+    const currentRules = getCurrentRules();
+    if (currentRules.length === 0) return;
+    
+    if (!confirm(`Êtes-vous sûr de vouloir supprimer toutes les règles de cette catégorie (${currentRules.length} règles) ?`)) return;
+    
+    try {
+      const { error } = await supabase
+        .from('email_rules')
+        .delete()
+        .in('id', currentRules.map(r => r.id));
+
+      if (error) throw error;
+
+      await loadRules();
+      toast({
+        title: 'Règles supprimées',
+        description: `${currentRules.length} règles ont été supprimées`,
+      });
+    } catch (error: any) {
+      toast({
+        title: 'Erreur',
+        description: error.message,
+        variant: 'destructive',
+      });
+    }
+  };
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-between items-center">
-        <p className="text-sm text-muted-foreground">
-          Gérez vos règles d'automatisation d'emails
-        </p>
-        <div className="flex gap-2">
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".xlsx,.xls"
-            onChange={handleFileImport}
-            className="hidden"
-          />
-          <Button 
-            variant="outline" 
-            onClick={createExampleRules}
-          >
-            <Wand2 className="mr-2 h-4 w-4" />
-            Exemples
-          </Button>
-          <Button 
-            variant="outline" 
-            onClick={downloadTemplate}
-          >
-            <Download className="mr-2 h-4 w-4" />
-            Template
-          </Button>
-          <Button 
-            variant="outline" 
-            onClick={() => fileInputRef.current?.click()}
-            disabled={importing}
-          >
-            <Upload className="mr-2 h-4 w-4" />
-            {importing ? 'Import...' : 'Importer'}
-          </Button>
-          {rules.length > 0 && (
-            <Button 
-              variant="outline" 
-              onClick={clearAllRules}
-            >
-              <Trash className="mr-2 h-4 w-4" />
-              Vider les règles
-            </Button>
-          )}
-          <Button onClick={() => setEditingRule({} as Rule)}>
-            <Plus className="mr-2 h-4 w-4" />
-            Nouvelle règle
-          </Button>
-        </div>
-      </div>
+      <p className="text-sm text-muted-foreground">
+        Gérez vos règles d'automatisation d'emails. La priorité (high/medium/low) influence le score de l'email.
+      </p>
 
       {rules.length === 0 ? (
         <div className="text-center py-12 border-2 border-dashed rounded-lg">
@@ -525,11 +525,8 @@ export const EmailRules = () => {
           </Button>
         </div>
       ) : (
-        <Tabs defaultValue="all" className="w-full">
+        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)} className="w-full">
           <TabsList className="grid w-full grid-cols-4">
-            <TabsTrigger value="all">
-              Toutes ({rules.length})
-            </TabsTrigger>
             <TabsTrigger value="label">
               Label ({labelRules.length})
             </TabsTrigger>
@@ -539,22 +536,74 @@ export const EmailRules = () => {
             <TabsTrigger value="auto-reply">
               Réponse auto ({autoReplyRules.length})
             </TabsTrigger>
+            <TabsTrigger value="notification">
+              Notification ({notificationRules.length})
+            </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="all" className="mt-4">
-            {renderRulesList(rules)}
-          </TabsContent>
+          <div className="flex gap-2 mt-4 mb-4">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".xlsx,.xls"
+              onChange={handleFileImport}
+              className="hidden"
+            />
+            <Button 
+              variant="outline" 
+              onClick={createExampleRules}
+              size="sm"
+            >
+              <Wand2 className="mr-2 h-4 w-4" />
+              Exemples
+            </Button>
+            <Button 
+              variant="outline" 
+              onClick={downloadTemplate}
+              size="sm"
+            >
+              <Download className="mr-2 h-4 w-4" />
+              Template
+            </Button>
+            <Button 
+              variant="outline" 
+              onClick={() => fileInputRef.current?.click()}
+              disabled={importing}
+              size="sm"
+            >
+              <Upload className="mr-2 h-4 w-4" />
+              {importing ? 'Import...' : 'Importer'}
+            </Button>
+            {getCurrentRules().length > 0 && (
+              <Button 
+                variant="outline" 
+                onClick={clearCurrentRules}
+                size="sm"
+              >
+                <Trash className="mr-2 h-4 w-4" />
+                Vider ({getCurrentRules().length})
+              </Button>
+            )}
+            <Button onClick={() => setEditingRule({} as Rule)} size="sm">
+              <Plus className="mr-2 h-4 w-4" />
+              Nouvelle règle
+            </Button>
+          </div>
 
-          <TabsContent value="label" className="mt-4">
+          <TabsContent value="label" className="mt-0">
             {renderRulesList(labelRules)}
           </TabsContent>
 
-          <TabsContent value="draft" className="mt-4">
+          <TabsContent value="draft" className="mt-0">
             {renderRulesList(draftRules)}
           </TabsContent>
 
-          <TabsContent value="auto-reply" className="mt-4">
+          <TabsContent value="auto-reply" className="mt-0">
             {renderRulesList(autoReplyRules)}
+          </TabsContent>
+
+          <TabsContent value="notification" className="mt-0">
+            {renderRulesList(notificationRules)}
           </TabsContent>
         </Tabs>
       )}
