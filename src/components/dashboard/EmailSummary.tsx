@@ -29,12 +29,17 @@ export const EmailSummary = () => {
         .from('email_summary_schedules')
         .select('schedule_times')
         .eq('user_id', user?.id)
-        .eq('is_active', true)
-        .single();
+        .eq('is_active', true);
 
-      if (error && error.code !== 'PGRST116') throw error;
-      if (data) {
-        setSchedules(data.schedule_times || []);
+      if (error) throw error;
+
+      if (Array.isArray(data)) {
+        const merged = Array.from(
+          new Set(data.flatMap((r: any) => r?.schedule_times || []))
+        ).sort();
+        setSchedules(merged);
+      } else {
+        setSchedules([]);
       }
     } catch (error) {
       console.error('Error loading schedules:', error);
@@ -52,11 +57,14 @@ export const EmailSummary = () => {
     try {
       const { error } = await supabase
         .from('email_summary_schedules')
-        .upsert({
-          user_id: user?.id,
-          schedule_times: updatedSchedules,
-          is_active: true,
-        });
+        .upsert(
+          {
+            user_id: user?.id,
+            schedule_times: updatedSchedules,
+            is_active: true,
+          },
+          { onConflict: 'user_id' }
+        );
 
       if (error) throw error;
 
@@ -75,11 +83,14 @@ export const EmailSummary = () => {
     try {
       const { error } = await supabase
         .from('email_summary_schedules')
-        .upsert({
-          user_id: user?.id,
-          schedule_times: updatedSchedules,
-          is_active: true,
-        });
+        .upsert(
+          {
+            user_id: user?.id,
+            schedule_times: updatedSchedules,
+            is_active: true,
+          },
+          { onConflict: 'user_id' }
+        );
 
       if (error) throw error;
 
@@ -122,7 +133,7 @@ export const EmailSummary = () => {
         user_id: user?.id,
         period_start: new Date(manualStartDate).toISOString(),
         period_end: new Date(manualEndDate).toISOString(),
-        summary_content: data.summary,
+        summary_content: data.summary, // textual summary returned by function
       });
 
       toast({ title: 'Succès', description: 'Résumé envoyé sur WhatsApp' });

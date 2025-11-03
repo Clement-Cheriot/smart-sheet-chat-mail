@@ -44,47 +44,98 @@ serve(async (req) => {
       .select('*')
       .eq('user_id', userId)
       .gte('processed_at', startTime.toISOString())
+      .lte('processed_at', endTime.toISOString())
       .order('processed_at', { ascending: false });
 
     if (emailsError) throw emailsError;
 
-    // Calculate statistics
+    // Calculate statistics with richer breakdowns
     const totalEmails = emails?.length || 0;
-    const highPriority = emails?.filter(e => e.priority_score >= 7).length || 0;
-    const draftsCreated = emails?.filter(e => e.draft_created).length || 0;
-    
-    // Group by label
-    const labelCounts: Record<string, number> = {};
-    emails?.forEach(email => {
-      if (email.applied_label) {
-        labelCounts[email.applied_label] = (labelCounts[email.applied_label] || 0) + 1;
-      }
+
+    const pendingReviewList = (emails || []).filter((e: any) => {
+      const hasLabel = Array.isArray(e.applied_label) ? e.applied_label.length > 0 : !!e.applied_label;
+      const hasActions = Array.isArray(e.actions_taken) ? e.actions_taken.length > 0 : false;
+      return !hasLabel && !e.draft_created && !hasActions; // nothing applied/generated yet
+    });
+    const pendingReview = pendingReviewList.length;
+
+    const draftsCreated = (emails || []).filter((e: any) => e.draft_created).length;
+    const autoReplies = (emails || []).filter((e: any) =>
+      (e.ai_analysis?.response_type === 'auto') ||
+      (Array.isArray(e.actions_taken) && e.actions_taken.some((a: any) => a.type === 'auto_reply'))
+    ).length;
+    const notificationsSent = (emails || []).filter((e: any) => e.whatsapp_notified).length;
+    const calendarActions = (emails || []).filter((e: any) => e.ai_analysis?.needs_calendar_action).length;
+
+    // Group pending review by sender and category
+    const bySender: Record<string, number> = {};
+    const byCategory: Record<string, number> = {};
+    pendingReviewList.forEach((e: any) => {
+      const sender = e.sender || 'Expéditeur inconnu';
+      bySender[sender] = (bySender[sender] || 0) + 1;
+      const cat = e.ai_analysis?.category || 'divers';
+      byCategory[cat] = (byCategory[cat] || 0) + 1;
     });
 
-    // Generate summary message
-    const summaryLines = [
-      `📊 Résumé ${period === 'daily' ? 'quotidien' : 'hebdomadaire'}`,
-      '',
-      `📧 Total: ${totalEmails} emails traités`,
-      `🚨 Urgents: ${highPriority} emails`,
-      `📝 Brouillons: ${draftsCreated} créés`,
-      '',
-      '🏷️ Par catégorie:',
-    ];
+    // Suggested new labels and rule reinforcements
+    const proposedLabels = Array.from(new Set((emails || [])
+      .map((e: any) => e.suggested_new_label || e.ai_analysis?.suggested_label)
+      .filter((v: any) => !!v))) as string[];
 
-    Object.entries(labelCounts).forEach(([label, count]) => {
-      summaryLines.push(`  • ${label}: ${count}`);
-    });
+    const ruleReinforcements = (emails || [])
+      .map((e: any) => e.rule_reinforcement_suggestion)
+      .filter((v: any) => !!v) as string[];
 
-    if (highPriority > 0) {
-      summaryLines.push('', '⚠️ Emails urgents à traiter:');
-      const urgentEmails = emails?.filter(e => e.priority_score >= 7).slice(0, 5);
-      urgentEmails?.forEach(email => {
-        summaryLines.push(`  • ${email.sender}: ${email.subject}`);
+    // Build summary in requested format (FR)
+    const formatFR = (d: Date) => d.toLocaleString('fr-FR', { dateStyle: 'medium', timeStyle: 'short' });
+
+    const lines: string[] = [];
+    lines.push(`Résumé du ${formatFR(startTime)} au ${formatFR(endTime)}:`);
+    lines.push(`📊 Total emails traités : ${totalEmails}`);
+    lines.push(`⚠️ En attente de revue manuelle : ${pendingReview}`);
+    lines.push(`📝 Brouillons écrits : ${draftsCreated}`);
+    lines.push(`🤖 Réponses automatiques : ${autoReplies}`);
+    lines.push(`🔔 Notifications envoyées : ${notificationsSent}`);
+    lines.push(`📅 Calendar : ${calendarActions}`);
+    lines.push('');
+
+    if (pendingReview > 0) {
+      lines.push(`📁 Détails des emails à revoir :`);
+      // Top senders (up to 3)
+      const topSenders = Object.entries(bySender)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 3);
+      topSenders.forEach(([sender, count]) => {
+        const catText = Object.entries(byCategory)
+          .sort((a, b) => b[1] - a[1])
+          .map(([c, n]) => `- ${n} email${n > 1 ? 's' : ''} dans la catégorie ${c}`)
+          .slice(0, 2);
+        lines.push(`• ${count} email${count > 1 ? 's' : ''} de ${sender} nécessitent une revue manuelle, car ils n'ont pas de règles existantes.`);
+        catText.forEach((t) => lines.push(t));
       });
+      lines.push('');
     }
 
-    const summaryMessage = summaryLines.join('\n');
+    if (proposedLabels.length > 0) {
+      lines.push('💡 Nouveaux labels proposés :');
+      proposedLabels.slice(0, 3).forEach((label, idx) => {
+        lines.push(`${idx + 1}. ${label} (à valider dans l'application)`);
+      });
+      lines.push('');
+    }
+
+    if (ruleReinforcements.length > 0) {
+      lines.push(`Renforcement de ${ruleReinforcements.length} règle${ruleReinforcements.length > 1 ? 's' : ''} proposé${ruleReinforcements.length > 1 ? 's' : ''} :`);
+      ruleReinforcements.slice(0, 5).forEach((r) => lines.push(`${r} (à valider dans l'application)`));
+      lines.push('');
+    }
+
+    lines.push('🔄 Action :');
+    if (pendingReview > 0) lines.push(`Revoir les ${pendingReview} email${pendingReview > 1 ? 's' : ''} manuellement.`);
+    if (draftsCreated > 0) lines.push('Voir les brouillons proposés.');
+    if (notificationsSent > 0) lines.push('Vérifier les notifications envoyées.');
+
+    const summaryMessage = lines.join('\n');
 
     // Send via WhatsApp
     await supabase.functions.invoke('whatsapp-sender', {
@@ -99,18 +150,21 @@ serve(async (req) => {
     await supabase.from('activity_logs').insert({
       user_id: userId,
       action_type: 'summary_sent',
-      action_details: { period, totalEmails, highPriority },
+      action_details: { period, totalEmails, pendingReview, draftsCreated, autoReplies, notificationsSent, calendarActions },
       status: 'success'
     });
 
     return new Response(
       JSON.stringify({ 
         success: true,
-        summary: {
+        summary: summaryMessage,
+        stats: {
           totalEmails,
-          highPriority,
+          pendingReview,
           draftsCreated,
-          labels: labelCounts
+          autoReplies,
+          notificationsSent,
+          calendarActions
         }
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
