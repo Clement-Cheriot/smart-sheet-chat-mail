@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
@@ -16,6 +16,8 @@ export const EmailSummary = () => {
   const [manualStartDate, setManualStartDate] = useState('');
   const [manualEndDate, setManualEndDate] = useState('');
   const [loading, setLoading] = useState(false);
+  const startRef = useRef<HTMLInputElement>(null);
+  const endRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (user) {
@@ -106,8 +108,8 @@ export const EmailSummary = () => {
     console.log('Manual dates:', { manualStartDate, manualEndDate });
     
     // Fallback: read from DOM if state is empty (some browsers can miss onChange)
-    const startVal = manualStartDate || (document.getElementById('start-date') as HTMLInputElement)?.value || '';
-    const endVal = manualEndDate || (document.getElementById('end-date') as HTMLInputElement)?.value || '';
+    const startVal = manualStartDate || startRef.current?.value || (document.getElementById('start-date') as HTMLInputElement)?.value || '';
+    const endVal = manualEndDate || endRef.current?.value || (document.getElementById('end-date') as HTMLInputElement)?.value || '';
 
     if (!startVal || !endVal) {
       toast({ title: 'Erreur', description: 'Veuillez sélectionner les dates', variant: 'destructive' });
@@ -219,6 +221,7 @@ export const EmailSummary = () => {
               <Label htmlFor="start-date">Date de début</Label>
               <Input
                 id="start-date"
+                ref={startRef}
                 type="datetime-local"
                 value={manualStartDate}
                 onChange={(e) => {
@@ -236,6 +239,7 @@ export const EmailSummary = () => {
               <Label htmlFor="end-date">Date de fin</Label>
               <Input
                 id="end-date"
+                ref={endRef}
                 type="datetime-local"
                 value={manualEndDate}
                 onChange={(e) => {

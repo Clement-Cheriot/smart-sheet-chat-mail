@@ -23,3 +23,6 @@ verify_jwt = false
 
 [functions.gmail-oauth-callback]
 verify_jwt = false
+
+[functions.email-summary-cron]
+verify_jwt = false
