@@ -13,11 +13,12 @@ interface Rule {
   id: string;
   sender_pattern: string;
   keywords: string[];
-  label_to_apply: string;
+  label_to_apply: string | null;
   priority: string;
   is_active: boolean;
   create_draft: boolean;
   auto_reply: boolean;
+  notify_urgent: boolean;
   exclude_newsletters: boolean;
   exclude_marketing: boolean;
 }
@@ -235,65 +236,71 @@ export const EmailRules = () => {
     const exampleRules = [
       {
         user_id: user?.id,
-        sender_pattern: '@bank.com|@banque.fr',
-        keywords: ['transaction', 'virement', 'compte'],
-        label_to_apply: 'Banque',
+        label_to_apply: null,
+        sender_pattern: '@client-vip.com',
+        keywords: ['urgent', 'problème', 'erreur'],
         priority: 'high',
-        is_active: true,
+        auto_reply: true,
         create_draft: false,
-        auto_reply: false,
+        notify_urgent: false,
+        response_template: 'Bonjour,\n\nNous avons bien reçu votre demande urgente et notre équipe y travaille activement. Nous vous tiendrons informé sous peu.\n\nCordialement',
+        is_active: true,
         exclude_newsletters: true,
         exclude_marketing: true,
-        rule_order: 1,
+        rule_order: 1
       },
       {
         user_id: user?.id,
-        keywords: ['facture', 'paiement', 'montant dû'],
-        label_to_apply: 'Facturation',
-        priority: 'high',
-        is_active: true,
-        create_draft: false,
-        auto_reply: false,
-        exclude_newsletters: true,
-        exclude_marketing: true,
-        rule_order: 2,
-      },
-      {
-        user_id: user?.id,
-        keywords: ['réunion', 'meeting', 'rdv', 'rendez-vous'],
-        label_to_apply: 'Réunions',
+        label_to_apply: null,
+        keywords: ['facture', 'paiement', 'devis'],
         priority: 'medium',
-        is_active: true,
         create_draft: true,
         auto_reply: false,
+        notify_urgent: false,
+        is_active: true,
         exclude_newsletters: true,
         exclude_marketing: true,
-        rule_order: 3,
+        rule_order: 2
       },
       {
         user_id: user?.id,
-        keywords: ['newsletter', 'unsubscribe', 'désabonner'],
         label_to_apply: 'Newsletter',
+        keywords: ['newsletter', 'actualités'],
         priority: 'low',
-        is_active: true,
-        create_draft: false,
         auto_reply: false,
+        create_draft: false,
+        notify_urgent: false,
+        is_active: true,
         exclude_newsletters: true,
         exclude_marketing: true,
-        rule_order: 4,
+        rule_order: 3
       },
       {
         user_id: user?.id,
-        keywords: ['urgent', 'asap', 'immédiatement'],
-        label_to_apply: 'Urgent',
+        label_to_apply: 'Important/Urgent',
+        keywords: ['urgent', 'asap', 'immédiat', 'critique'],
         priority: 'high',
+        auto_reply: false,
+        create_draft: false,
+        notify_urgent: true,
         is_active: true,
+        exclude_newsletters: true,
+        exclude_marketing: true,
+        rule_order: 4
+      },
+      {
+        user_id: user?.id,
+        label_to_apply: 'Clients/VIP',
+        sender_pattern: '@vip-client.',
+        priority: 'high',
         create_draft: true,
         auto_reply: false,
+        notify_urgent: true,
+        is_active: true,
         exclude_newsletters: true,
-        exclude_marketing: false,
-        rule_order: 5,
-      },
+        exclude_marketing: true,
+        rule_order: 5
+      }
     ];
 
     try {
@@ -388,6 +395,11 @@ export const EmailRules = () => {
                       Réponse auto
                     </Badge>
                   )}
+                  {rule.notify_urgent && (
+                    <Badge variant="outline" className="text-red-600 border-red-600">
+                      Notification urgente
+                    </Badge>
+                  )}
                 </div>
                 <p className="font-medium mb-1">
                   Expéditeur : {rule.sender_pattern || 'Tous'}
@@ -397,9 +409,11 @@ export const EmailRules = () => {
                     Mots-clés : {rule.keywords.join(', ')}
                   </p>
                 )}
-                <p className="text-sm mb-1">
-                  Label : <span className="font-medium">{rule.label_to_apply}</span>
-                </p>
+                {rule.label_to_apply && (
+                  <p className="text-sm mb-1">
+                    Label : <span className="font-medium">{rule.label_to_apply}</span>
+                  </p>
+                )}
                 {(rule.exclude_newsletters || rule.exclude_marketing) && (
                   <p className="text-xs text-muted-foreground">
                     Exclusions : {[

@@ -263,13 +263,17 @@ export const EmailHistory = () => {
               <div className="mt-3 space-y-2">
                 <p className="text-xs font-medium text-muted-foreground">Actions de l'IA :</p>
                 <div className="flex flex-col gap-2">
-                  {email.applied_label && (
-                    <div className="flex items-center gap-2 text-xs">
-                      <Tag className="h-3 w-3 text-primary" />
-                      <span className="font-medium">Application de label :</span>
-                      <Badge variant="outline" className="text-xs">{email.applied_label}</Badge>
-                    </div>
-                  )}
+              {email.applied_label && Array.isArray(email.applied_label) && email.applied_label.length > 0 && (
+                <div className="flex items-center gap-2 text-xs">
+                  <Tag className="h-3 w-3 text-primary" />
+                  <span className="font-medium">Application de label :</span>
+                  <div className="flex flex-wrap gap-1">
+                    {email.applied_label.map((label: string, idx: number) => (
+                      <Badge key={idx} variant="outline" className="text-xs">{label}</Badge>
+                    ))}
+                  </div>
+                </div>
+              )}
                   
                   {email.draft_created && email.draft_id && (
                     <div className="flex items-center gap-2 text-xs">

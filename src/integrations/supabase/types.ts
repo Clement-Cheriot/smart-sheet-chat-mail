@@ -49,7 +49,7 @@ export type Database = {
           actions_taken: Json | null
           ai_analysis: Json | null
           ai_reasoning: string | null
-          applied_label: string | null
+          applied_label: string[] | null
           body_summary: string | null
           created_at: string
           draft_created: boolean | null
@@ -72,7 +72,7 @@ export type Database = {
           actions_taken?: Json | null
           ai_analysis?: Json | null
           ai_reasoning?: string | null
-          applied_label?: string | null
+          applied_label?: string[] | null
           body_summary?: string | null
           created_at?: string
           draft_created?: boolean | null
@@ -95,7 +95,7 @@ export type Database = {
           actions_taken?: Json | null
           ai_analysis?: Json | null
           ai_reasoning?: string | null
-          applied_label?: string | null
+          applied_label?: string[] | null
           body_summary?: string | null
           created_at?: string
           draft_created?: boolean | null
@@ -127,7 +127,8 @@ export type Database = {
           id: string
           is_active: boolean
           keywords: string[] | null
-          label_to_apply: string
+          label_to_apply: string | null
+          notify_urgent: boolean | null
           priority: string | null
           response_template: string | null
           rule_order: number
@@ -145,7 +146,8 @@ export type Database = {
           id?: string
           is_active?: boolean
           keywords?: string[] | null
-          label_to_apply: string
+          label_to_apply?: string | null
+          notify_urgent?: boolean | null
           priority?: string | null
           response_template?: string | null
           rule_order?: number
@@ -163,7 +165,8 @@ export type Database = {
           id?: string
           is_active?: boolean
           keywords?: string[] | null
-          label_to_apply?: string
+          label_to_apply?: string | null
+          notify_urgent?: boolean | null
           priority?: string | null
           response_template?: string | null
           rule_order?: number

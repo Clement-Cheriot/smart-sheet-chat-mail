@@ -59,23 +59,32 @@ serve(async (req) => {
     console.log('AI Analysis:', aiAnalysis);
 
     // Match rules
-    let appliedRule = null;
-    let appliedLabel = null;
-
-    for (const rule of rules || []) {
-      if (matchesRule(emailData, rule)) {
-        appliedRule = rule;
-        appliedLabel = rule.label_to_apply;
-        break;
-      }
-    }
-
-    // Calculate priority score
-    const priorityScore = calculatePriorityScore(aiAnalysis, appliedRule);
-
-    // Determine if we should create a draft based on AI analysis first
+    const matchedRules = (rules || []).filter((rule: any) => matchesRule(emailData, rule));
+    
     let shouldCreateDraft = false;
     let shouldAutoReply = false;
+    let appliedLabels: string[] = [];
+    let appliedRuleId: any = null;
+    let shouldNotifyUrgent = false;
+    
+    if (matchedRules.length > 0) {
+      // Collect all labels from matched rules
+      appliedLabels = matchedRules
+        .map((rule: any) => rule.label_to_apply)
+        .filter((label: any) => label != null) as string[];
+      
+      // Sort by rule_order and take the first matching rule for primary action
+      const sortedRules = matchedRules.sort((a: any, b: any) => a.rule_order - b.rule_order);
+      const primaryRule = sortedRules[0];
+      
+      appliedRuleId = primaryRule;
+      
+      // Check if any rule has notify_urgent
+      shouldNotifyUrgent = matchedRules.some((rule: any) => rule.notify_urgent);
+    }
+
+    // Calculate priority score using primary rule
+    const priorityScore = calculatePriorityScore(aiAnalysis, appliedRuleId);
     
     // AI-driven response decision (primary)
     if (aiAnalysis.needs_response && aiAnalysis.response_type !== 'none') {
@@ -83,20 +92,20 @@ serve(async (req) => {
       const isMarketing = aiAnalysis.category === 'marketing';
       
       // Check if rule allows it
-      if (appliedRule) {
+      if (appliedRuleId) {
         // Rule can override AI decision
-        if (aiAnalysis.response_type === 'draft' && appliedRule.create_draft !== false) {
-          if (isNewsletter && appliedRule.exclude_newsletters) {
+        if (aiAnalysis.response_type === 'draft' && appliedRuleId.create_draft !== false) {
+          if (isNewsletter && appliedRuleId.exclude_newsletters) {
             console.log('Skipping draft: newsletter excluded by rule');
-          } else if (isMarketing && appliedRule.exclude_marketing) {
+          } else if (isMarketing && appliedRuleId.exclude_marketing) {
             console.log('Skipping draft: marketing excluded by rule');
           } else {
             shouldCreateDraft = true;
           }
-        } else if (aiAnalysis.response_type === 'auto_reply' && appliedRule.auto_reply) {
-          if (isNewsletter && appliedRule.exclude_newsletters) {
+        } else if (aiAnalysis.response_type === 'auto_reply' && appliedRuleId.auto_reply) {
+          if (isNewsletter && appliedRuleId.exclude_newsletters) {
             console.log('Skipping auto-reply: newsletter excluded by rule');
-          } else if (isMarketing && appliedRule.exclude_marketing) {
+          } else if (isMarketing && appliedRuleId.exclude_marketing) {
             console.log('Skipping auto-reply: marketing excluded by rule');
           } else {
             shouldAutoReply = true;
@@ -115,12 +124,12 @@ serve(async (req) => {
     }
     
     // Rule can also force draft creation even if AI says no (backwards compatibility)
-    if (appliedRule?.create_draft && !shouldCreateDraft && !shouldAutoReply) {
+    if (appliedRuleId?.create_draft && !shouldCreateDraft && !shouldAutoReply) {
       const isNewsletter = aiAnalysis.category === 'newsletter';
       const isMarketing = aiAnalysis.category === 'marketing';
       
-      if (!(isNewsletter && appliedRule.exclude_newsletters) && 
-          !(isMarketing && appliedRule.exclude_marketing)) {
+      if (!(isNewsletter && appliedRuleId.exclude_newsletters) && 
+          !(isMarketing && appliedRuleId.exclude_marketing)) {
         shouldCreateDraft = true;
         console.log('Draft forced by rule override');
       }
@@ -137,15 +146,17 @@ serve(async (req) => {
     // Determine actions taken
     const actionsTaken = [];
     
-    if (appliedLabel) actionsTaken.push({ type: 'label', value: appliedLabel });
-    if (!appliedLabel && !shouldCreateDraft) {
+    if (appliedLabels.length > 0) {
+      actionsTaken.push({ type: 'label', value: appliedLabels });
+    }
+    if (appliedLabels.length === 0 && !shouldCreateDraft) {
       actionsTaken.push({ type: 'manual_review', value: 'Needs Manual Review' });
-      appliedLabel = 'Needs Manual Review';
+      appliedLabels.push('Needs Manual Review');
     }
 
     // Determine rule reinforcement suggestion
     let ruleReinforcement = null;
-    if (appliedRule && aiAnalysis.suggested_label && aiAnalysis.suggested_label !== appliedLabel) {
+    if (appliedRuleId && aiAnalysis.suggested_label && !appliedLabels.includes(aiAnalysis.suggested_label)) {
       ruleReinforcement = `Consider adding rule for label "${aiAnalysis.suggested_label}" based on similar patterns`;
     }
 
@@ -158,7 +169,7 @@ serve(async (req) => {
         sender: emailData.sender,
         subject: emailData.subject,
         received_at: emailData.receivedAt,
-        applied_label: appliedLabel,
+        applied_label: appliedLabels.length > 0 ? appliedLabels : null,
         priority_score: priorityScore,
         ai_analysis: aiAnalysis,
         draft_created: false,
@@ -173,18 +184,21 @@ serve(async (req) => {
 
     if (historyError) throw historyError;
 
-    // Apply Gmail label if rule matched
-    if (appliedLabel) {
-      console.log('Applying label:', appliedLabel);
-      // Call gmail-actions function
-      await supabase.functions.invoke('gmail-actions', {
-        body: {
-          action: 'apply_label',
-          userId: emailData.userId,
-          messageId: emailData.messageId,
-          label: appliedLabel,
+    // Apply Gmail labels if rules matched
+    if (appliedLabels.length > 0) {
+      for (const label of appliedLabels) {
+        if (label !== 'Needs Manual Review') {
+          console.log('Applying label:', label);
+          await supabase.functions.invoke('gmail-actions', {
+            body: {
+              action: 'apply_label',
+              userId: emailData.userId,
+              messageId: emailData.messageId,
+              label: label,
+            }
+          });
         }
-      });
+      }
     }
 
     // Generate draft or auto-reply if needed
@@ -204,7 +218,7 @@ serve(async (req) => {
             body: emailData.body,
             aiResponseReasoning: aiAnalysis.response_reasoning,
           },
-          template: appliedRule?.response_template,
+          template: appliedRuleId?.response_template,
         }
       });
 
@@ -235,8 +249,8 @@ serve(async (req) => {
         .eq('id', historyRecord.id);
     }
 
-    // Send WhatsApp notification if high priority OR AI says it's urgent
-    if (priorityScore >= 8 || aiAnalysis.is_urgent_whatsapp) {
+    // Send WhatsApp notification for high priority emails or urgent rule matches
+    if (priorityScore >= 8 || shouldNotifyUrgent || aiAnalysis.is_urgent_whatsapp) {
       console.log('Sending WhatsApp notification');
       
       // Build suggested action message
@@ -253,7 +267,7 @@ serve(async (req) => {
         body: {
           userId: emailData.userId,
           type: 'alert',
-          message: `🚨 Email urgent détecté!\n\nDe: ${emailData.sender}\nSujet: ${emailData.subject}\nPriorité: ${priorityScore}/10\n\n📋 Résumé: ${aiAnalysis.body_summary}\n\n💡 Action suggérée: ${actionText}`,
+          message: `🚨 Email ${shouldNotifyUrgent ? 'urgent' : 'prioritaire'} détecté!\n\nDe: ${emailData.sender}\nSujet: ${emailData.subject}\nPriorité: ${priorityScore}/10\n${appliedLabels.length > 0 ? `Labels: ${appliedLabels.join(', ')}\n` : ''}\n📋 Résumé: ${aiAnalysis.body_summary}\n\n💡 Action suggérée: ${actionText}`,
         }
       });
 
@@ -273,7 +287,7 @@ serve(async (req) => {
       action_type: 'email_processed',
       action_details: { 
         messageId: emailData.messageId,
-        label: appliedLabel,
+        labels: appliedLabels,
         priority: priorityScore 
       },
       status: 'success'
@@ -282,9 +296,10 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({ 
         success: true, 
-        appliedLabel,
+        appliedLabels,
         priorityScore,
-        draftCreated: !!appliedRule?.auto_action 
+        draftCreated: shouldCreateDraft,
+        autoReplySent: shouldAutoReply
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
