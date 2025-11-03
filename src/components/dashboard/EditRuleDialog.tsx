@@ -5,7 +5,6 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import { Checkbox } from '@/components/ui/checkbox';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
 
@@ -28,8 +27,6 @@ export const EditRuleDialog = ({ open, onOpenChange, rule, onSuccess, ruleType =
     create_draft: rule.create_draft || ruleType === 'draft',
     auto_reply: rule.auto_reply || ruleType === 'auto-reply',
     notify_urgent: rule.notify_urgent || ruleType === 'notification',
-    exclude_newsletters: rule.exclude_newsletters !== false,
-    exclude_marketing: rule.exclude_marketing !== false,
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -41,8 +38,8 @@ export const EditRuleDialog = ({ open, onOpenChange, rule, onSuccess, ruleType =
         priority: formData.priority,
         sender_pattern: formData.sender_pattern || null,
         keywords: formData.keywords ? formData.keywords.split(',').map(k => k.trim()).filter(Boolean) : null,
-        exclude_newsletters: formData.exclude_newsletters,
-        exclude_marketing: formData.exclude_marketing,
+        exclude_newsletters: true, // Géré par keywords négatifs maintenant
+        exclude_marketing: true,   // Géré par keywords négatifs maintenant
       };
 
       // Type-specific fields
@@ -172,10 +169,10 @@ export const EditRuleDialog = ({ open, onOpenChange, rule, onSuccess, ruleType =
               id="keywords"
               value={formData.keywords}
               onChange={(e) => setFormData({ ...formData, keywords: e.target.value })}
-              placeholder="Ex: facture, urgent, meeting (séparés par des virgules)"
+              placeholder="Ex: urgent, facture, -newsletter, -marketing"
             />
             <p className="text-xs text-muted-foreground">
-              Séparez les mots-clés par des virgules
+              Séparez les mots-clés par des virgules. Préfixez par "-" pour exclure (ex: -newsletter)
             </p>
           </div>
 
@@ -193,40 +190,6 @@ export const EditRuleDialog = ({ open, onOpenChange, rule, onSuccess, ruleType =
             </div>
           )}
 
-          {(ruleType === 'draft' || ruleType === 'auto-reply') && (
-            <div className="space-y-3 pt-2 border-t">
-              <Label className="text-base">Exclusions</Label>
-              <p className="text-xs text-muted-foreground">Ne pas créer de brouillon/réponse pour :</p>
-              
-              <div className="flex items-center space-x-2">
-                <Checkbox
-                  id="exclude_newsletters"
-                  checked={formData.exclude_newsletters}
-                  onCheckedChange={(checked) => setFormData({ ...formData, exclude_newsletters: checked as boolean })}
-                />
-                <label
-                  htmlFor="exclude_newsletters"
-                  className="text-sm leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                >
-                  Newsletters
-                </label>
-              </div>
-
-              <div className="flex items-center space-x-2">
-                <Checkbox
-                  id="exclude_marketing"
-                  checked={formData.exclude_marketing}
-                  onCheckedChange={(checked) => setFormData({ ...formData, exclude_marketing: checked as boolean })}
-                />
-                <label
-                  htmlFor="exclude_marketing"
-                  className="text-sm leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                >
-                  Marketing / Publicités
-                </label>
-              </div>
-            </div>
-          )}
 
           <div className="flex justify-end gap-2 pt-4 border-t">
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>

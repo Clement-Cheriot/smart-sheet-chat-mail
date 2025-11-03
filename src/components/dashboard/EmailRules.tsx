@@ -185,15 +185,48 @@ export const EmailRules = () => {
         };
       });
 
+      // Detect duplicates
+      const existingRules = rules;
+      const duplicates: string[] = [];
+      const uniqueRules = newRules.filter((newRule) => {
+        const isDuplicate = existingRules.some((existing) => {
+          // Check if sender_pattern and keywords match
+          const senderMatch = newRule.sender_pattern === existing.sender_pattern;
+          const keywordsMatch = JSON.stringify(newRule.keywords?.sort()) === JSON.stringify(existing.keywords?.sort());
+          const labelMatch = newRule.label_to_apply === existing.label_to_apply;
+          
+          return senderMatch && keywordsMatch && labelMatch;
+        });
+        
+        if (isDuplicate) {
+          duplicates.push(newRule.label_to_apply || 'Sans label');
+        }
+        
+        return !isDuplicate;
+      });
+
+      if (uniqueRules.length === 0) {
+        toast({
+          title: 'Aucune nouvelle règle',
+          description: 'Toutes les règles importées existent déjà',
+          variant: 'destructive',
+        });
+        return;
+      }
+
       const { error } = await supabase
         .from('email_rules')
-        .insert(newRules);
+        .insert(uniqueRules);
 
       if (error) throw error;
 
+      const message = duplicates.length > 0
+        ? `${uniqueRules.length} règle(s) importée(s), ${duplicates.length} doublon(s) ignoré(s)`
+        : `${uniqueRules.length} règle(s) importée(s)`;
+
       toast({
         title: 'Import réussi',
-        description: `${newRules.length} règles importées`,
+        description: message,
       });
 
       loadRules();
@@ -428,7 +461,7 @@ export const EmailRules = () => {
                     Label : <span className="font-medium">{rule.label_to_apply}</span>
                   </p>
                 )}
-                {(rule.exclude_newsletters || rule.exclude_marketing) && (
+                {(rule.create_draft || rule.auto_reply) && (rule.exclude_newsletters || rule.exclude_marketing) && (
                   <p className="text-xs text-muted-foreground">
                     Exclusions : {[
                       rule.exclude_newsletters && 'Newsletters',

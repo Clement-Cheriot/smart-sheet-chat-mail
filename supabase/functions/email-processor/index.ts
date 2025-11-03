@@ -415,14 +415,35 @@ function matchesRule(email: EmailData, rule: any): boolean {
     }
   }
 
-  // Check keywords
+  // Check keywords (with negative keywords support)
   if (rule.keywords && rule.keywords.length > 0) {
     const emailText = `${email.subject} ${email.body}`.toLowerCase();
-    const hasKeyword = rule.keywords.some((keyword: string) => 
-      emailText.includes(keyword.toLowerCase())
-    );
-    if (!hasKeyword) {
-      return false;
+    
+    // Separate positive and negative keywords
+    const positiveKeywords = rule.keywords.filter((k: string) => !k.startsWith('-'));
+    const negativeKeywords = rule.keywords
+      .filter((k: string) => k.startsWith('-'))
+      .map((k: string) => k.substring(1)); // Remove the "-" prefix
+    
+    // Check negative keywords first (exclusions)
+    if (negativeKeywords.length > 0) {
+      const hasExcludedKeyword = negativeKeywords.some((keyword: string) => 
+        emailText.includes(keyword.toLowerCase())
+      );
+      if (hasExcludedKeyword) {
+        console.log(`Rule excluded due to negative keyword match`);
+        return false;
+      }
+    }
+    
+    // Check positive keywords (at least one must match)
+    if (positiveKeywords.length > 0) {
+      const hasKeyword = positiveKeywords.some((keyword: string) => 
+        emailText.includes(keyword.toLowerCase())
+      );
+      if (!hasKeyword) {
+        return false;
+      }
     }
   }
 
