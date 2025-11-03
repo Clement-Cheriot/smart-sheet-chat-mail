@@ -8,7 +8,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import { toast } from '@/hooks/use-toast';
 import { formatDistanceToNow } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { Mail, Tag, Clock, ChevronDown, Check, X, Lightbulb, Brain, Calendar, MessageSquare, Trash } from 'lucide-react';
+import { Mail, Tag, Clock, ChevronDown, Check, X, Lightbulb, Brain, Calendar, MessageSquare, Trash, RefreshCw } from 'lucide-react';
 
 interface EmailRecord {
   id: string;
@@ -33,6 +33,7 @@ interface EmailRecord {
 export const EmailHistory = () => {
   const [emails, setEmails] = useState<EmailRecord[]>([]);
   const [loading, setLoading] = useState(true);
+  const [syncing, setSyncing] = useState(false);
   const { user } = useAuth();
 
   useEffect(() => {
@@ -102,6 +103,33 @@ export const EmailHistory = () => {
     } catch (error) {
       console.error('Error validating rule:', error);
       toast({ title: 'Erreur', description: 'Impossible de valider', variant: 'destructive' });
+    }
+  };
+
+  const syncEmails = async () => {
+    setSyncing(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('gmail-sync', {
+        body: { userId: user?.id }
+      });
+
+      if (error) throw error;
+
+      toast({
+        title: 'Synchronisation réussie',
+        description: `${data.processedCount} nouveaux emails ont été traités`,
+      });
+      
+      // Reload emails after sync
+      await loadEmails();
+    } catch (error: any) {
+      toast({
+        title: 'Erreur',
+        description: error.message,
+        variant: 'destructive',
+      });
+    } finally {
+      setSyncing(false);
     }
   };
 
@@ -185,14 +213,18 @@ export const EmailHistory = () => {
 
   return (
     <div className="space-y-4">
-      {emails.length > 0 && (
-        <div className="flex justify-end">
+      <div className="flex justify-end gap-2">
+        <Button variant="outline" onClick={syncEmails} disabled={syncing}>
+          <RefreshCw className={`mr-2 h-4 w-4 ${syncing ? 'animate-spin' : ''}`} />
+          {syncing ? 'Synchronisation...' : 'Synchroniser les emails'}
+        </Button>
+        {emails.length > 0 && (
           <Button variant="outline" onClick={clearAllEmails} disabled={isClearing}>
             <Trash className="mr-2 h-4 w-4" />
             {isClearing ? 'Suppression...' : 'Vider le cache'}
           </Button>
-        </div>
-      )}
+        )}
+      </div>
       {emails.map((email) => (
         <Card key={email.id}>
           <Collapsible>

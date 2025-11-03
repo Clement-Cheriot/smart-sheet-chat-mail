@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Plus, Trash2, Edit, Upload, Download, Power, Trash } from 'lucide-react';
+import { Plus, Trash2, Edit, Upload, Download, Power, Trash, Wand2 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { EditRuleDialog } from './EditRuleDialog';
 
@@ -231,6 +231,92 @@ export const EmailRules = () => {
     }
   };
 
+  const createExampleRules = async () => {
+    const exampleRules = [
+      {
+        user_id: user?.id,
+        sender_pattern: '@bank.com|@banque.fr',
+        keywords: ['transaction', 'virement', 'compte'],
+        label_to_apply: 'Banque',
+        priority: 'high',
+        is_active: true,
+        create_draft: false,
+        auto_reply: false,
+        exclude_newsletters: true,
+        exclude_marketing: true,
+        rule_order: 1,
+      },
+      {
+        user_id: user?.id,
+        keywords: ['facture', 'paiement', 'montant dû'],
+        label_to_apply: 'Facturation',
+        priority: 'high',
+        is_active: true,
+        create_draft: false,
+        auto_reply: false,
+        exclude_newsletters: true,
+        exclude_marketing: true,
+        rule_order: 2,
+      },
+      {
+        user_id: user?.id,
+        keywords: ['réunion', 'meeting', 'rdv', 'rendez-vous'],
+        label_to_apply: 'Réunions',
+        priority: 'medium',
+        is_active: true,
+        create_draft: true,
+        auto_reply: false,
+        exclude_newsletters: true,
+        exclude_marketing: true,
+        rule_order: 3,
+      },
+      {
+        user_id: user?.id,
+        keywords: ['newsletter', 'unsubscribe', 'désabonner'],
+        label_to_apply: 'Newsletter',
+        priority: 'low',
+        is_active: true,
+        create_draft: false,
+        auto_reply: false,
+        exclude_newsletters: true,
+        exclude_marketing: true,
+        rule_order: 4,
+      },
+      {
+        user_id: user?.id,
+        keywords: ['urgent', 'asap', 'immédiatement'],
+        label_to_apply: 'Urgent',
+        priority: 'high',
+        is_active: true,
+        create_draft: true,
+        auto_reply: false,
+        exclude_newsletters: true,
+        exclude_marketing: false,
+        rule_order: 5,
+      },
+    ];
+
+    try {
+      const { error } = await supabase
+        .from('email_rules')
+        .insert(exampleRules);
+
+      if (error) throw error;
+
+      await loadRules();
+      toast({
+        title: 'Règles créées',
+        description: '5 règles d\'exemple ont été créées avec succès',
+      });
+    } catch (error: any) {
+      toast({
+        title: 'Erreur',
+        description: error.message,
+        variant: 'destructive',
+      });
+    }
+  };
+
   const clearAllRules = async () => {
     if (!confirm('Êtes-vous sûr de vouloir supprimer toutes les règles ?')) return;
     
@@ -380,6 +466,13 @@ export const EmailRules = () => {
           />
           <Button 
             variant="outline" 
+            onClick={createExampleRules}
+          >
+            <Wand2 className="mr-2 h-4 w-4" />
+            Exemples
+          </Button>
+          <Button 
+            variant="outline" 
             onClick={downloadTemplate}
           >
             <Download className="mr-2 h-4 w-4" />
@@ -402,7 +495,7 @@ export const EmailRules = () => {
               Vider les règles
             </Button>
           )}
-          <Button onClick={() => toast({ title: 'Fonctionnalité en cours de développement' })}>
+          <Button onClick={() => setEditingRule({} as Rule)}>
             <Plus className="mr-2 h-4 w-4" />
             Nouvelle règle
           </Button>
@@ -412,7 +505,7 @@ export const EmailRules = () => {
       {rules.length === 0 ? (
         <div className="text-center py-12 border-2 border-dashed rounded-lg">
           <p className="text-muted-foreground mb-4">Aucune règle configurée</p>
-          <Button onClick={() => toast({ title: 'Fonctionnalité en cours de développement' })}>
+          <Button onClick={() => setEditingRule({} as Rule)}>
             <Plus className="mr-2 h-4 w-4" />
             Créer ma première règle
           </Button>
