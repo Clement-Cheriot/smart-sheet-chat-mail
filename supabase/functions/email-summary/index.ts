@@ -106,12 +106,17 @@ serve(async (req) => {
         .sort((a, b) => b[1] - a[1])
         .slice(0, 3);
       topSenders.forEach(([sender, count]) => {
-        const catText = Object.entries(byCategory)
-          .sort((a, b) => b[1] - a[1])
-          .map(([c, n]) => `- ${n} email${n > 1 ? 's' : ''} dans la catégorie ${c}`)
-          .slice(0, 2);
         lines.push(`• ${count} email${count > 1 ? 's' : ''} de ${sender} nécessitent une revue manuelle, car ils n'ont pas de règles existantes.`);
-        catText.forEach((t) => lines.push(t));
+      });
+      
+      // Top categories
+      lines.push('');
+      lines.push('📊 Top catégories traitées :');
+      const topCategories = Object.entries(byCategory)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 5);
+      topCategories.forEach(([cat, count]) => {
+        lines.push(`• ${cat}: ${count} email${count > 1 ? 's' : ''}`);
       });
       lines.push('');
     }

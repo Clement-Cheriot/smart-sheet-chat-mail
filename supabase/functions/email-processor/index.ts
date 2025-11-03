@@ -354,12 +354,13 @@ Fournis une réponse JSON avec:
 5. suggested_action: reply/forward/archive/review/urgent_response
 6. body_summary: Résumé bref en 2-3 phrases du contenu de l'email EN FRANÇAIS
 7. reasoning: Explique ton analyse et pourquoi tu as choisi ces classifications EN FRANÇAIS
-8. suggested_label: Si cela ne correspond à aucune catégorie existante, suggère un nouveau nom de label
+8. suggested_label: Si cela ne correspond à AUCUNE catégorie existante, suggère un nouveau label THÉMATIQUE/CATÉGORIEL générique (ex: "Devis clients", "RDV médicaux", "Formation", "Comptabilité"). NE JAMAIS suggérer des noms de personnes, d'entreprises spécifiques ou de produits. Le label doit être réutilisable pour des emails similaires futurs. Si l'email correspond déjà à une catégorie standard (work/personal/newsletter/spam/billing/support/marketing), retourne null.
 9. needs_calendar_action: boolean - est-ce que cela mentionne une réunion/événement à mettre au calendrier?
-10. is_urgent_whatsapp: boolean - est-ce suffisamment urgent pour justifier une notification WhatsApp immédiate?
-11. needs_response: boolean - est-ce que cet email nécessite une réponse? (false pour newsletters, pubs, notifications automatiques, etc.)
-12. response_type: "none" | "draft" | "auto_reply" - quel type de réponse serait approprié? "draft" = brouillon à personnaliser, "auto_reply" = réponse simple et automatique, "none" = pas de réponse nécessaire
-13. response_reasoning: string - explique pourquoi tu recommandes ce type de réponse EN FRANÇAIS`;
+10. calendar_details: Si needs_calendar_action=true, extraire {title: string, date: string (ISO), duration_minutes: number, location?: string, attendees?: string[]}
+11. is_urgent_whatsapp: boolean - est-ce suffisamment urgent pour justifier une notification WhatsApp immédiate?
+12. needs_response: boolean - est-ce que cet email nécessite une réponse? (false pour newsletters, pubs, notifications automatiques, etc.)
+13. response_type: "none" | "draft" | "auto_reply" - quel type de réponse serait approprié? "draft" = brouillon à personnaliser, "auto_reply" = réponse simple et automatique, "none" = pas de réponse nécessaire
+14. response_reasoning: string - explique pourquoi tu recommandes ce type de réponse EN FRANÇAIS`;
 
     const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',

@@ -17,9 +17,8 @@ export const EmailSummary = () => {
   const [manualEndDate, setManualEndDate] = useState('');
   const [loading, setLoading] = useState(false);
   const [sendingWhatsApp, setSendingWhatsApp] = useState(false);
+  const [generatingAudio, setGeneratingAudio] = useState(false);
   const [latestSummary, setLatestSummary] = useState<{ content: string; start: string; end: string } | null>(null);
-  const startRef = useRef<HTMLInputElement>(null);
-  const endRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (user) {
@@ -139,15 +138,12 @@ export const EmailSummary = () => {
   };
 
   const sendManualSummary = async () => {
-    const startVal = startRef.current?.value || '';
-    const endVal = endRef.current?.value || '';
-
-    if (!startVal || !endVal) {
+    if (!manualStartDate || !manualEndDate) {
       toast({ title: 'Erreur', description: 'Veuillez sélectionner les dates', variant: 'destructive' });
       return;
     }
 
-    if (new Date(startVal) > new Date(endVal)) {
+    if (new Date(manualStartDate) > new Date(manualEndDate)) {
       toast({ title: 'Erreur', description: 'La date de début doit être antérieure à la date de fin', variant: 'destructive' });
       return;
     }
@@ -158,8 +154,8 @@ export const EmailSummary = () => {
         body: {
           userId: user?.id,
           period: 'custom',
-          startDate: new Date(startVal).toISOString(),
-          endDate: new Date(endVal).toISOString(),
+          startDate: new Date(manualStartDate).toISOString(),
+          endDate: new Date(manualEndDate).toISOString(),
         },
       });
 
@@ -167,15 +163,15 @@ export const EmailSummary = () => {
 
       await supabase.from('email_summaries').insert({
         user_id: user?.id,
-        period_start: new Date(startVal).toISOString(),
-        period_end: new Date(endVal).toISOString(),
+        period_start: new Date(manualStartDate).toISOString(),
+        period_end: new Date(manualEndDate).toISOString(),
         summary_content: data.summary,
       });
 
       toast({ title: 'Succès', description: 'Résumé généré et enregistré' });
       loadLatestSummary();
-      if (startRef.current) startRef.current.value = '';
-      if (endRef.current) endRef.current.value = '';
+      setManualStartDate('');
+      setManualEndDate('');
     } catch (error: any) {
       console.error('Error sending summary:', error);
       toast({ title: 'Erreur', description: error.message || 'Impossible d\'envoyer le résumé', variant: 'destructive' });
@@ -246,6 +242,36 @@ export const EmailSummary = () => {
     }
   };
 
+  const generateAudioSummary = async () => {
+    if (!latestSummary?.content) {
+      toast({ title: 'Erreur', description: 'Aucun résumé disponible', variant: 'destructive' });
+      return;
+    }
+
+    setGeneratingAudio(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('text-to-speech', {
+        body: {
+          text: latestSummary.content,
+          voiceId: '9BWtsMINqrJLrRacOk9x', // Aria voice
+        },
+      });
+
+      if (error) throw error;
+
+      // Create audio element and play
+      const audio = new Audio(`data:audio/mpeg;base64,${data.audioContent}`);
+      await audio.play();
+
+      toast({ title: 'Succès', description: 'Audio généré et lu' });
+    } catch (error: any) {
+      console.error('Error generating audio:', error);
+      toast({ title: 'Erreur', description: error.message || 'Échec de la génération audio', variant: 'destructive' });
+    } finally {
+      setGeneratingAudio(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       {latestSummary && (
@@ -257,6 +283,12 @@ export const EmailSummary = () => {
                 <Button onClick={copyToClipboard} variant="outline" size="sm">
                   <Copy className="h-4 w-4 mr-2" />
                   Copier
+                </Button>
+                <Button onClick={generateAudioSummary} disabled={generatingAudio} variant="outline" size="sm">
+                  <svg className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
+                  </svg>
+                  {generatingAudio ? 'Génération...' : 'Audio'}
                 </Button>
                 <Button onClick={sendSummaryToWhatsApp} disabled={sendingWhatsApp} variant="outline" size="sm">
                   <Send className="h-4 w-4 mr-2" />
@@ -342,16 +374,18 @@ export const EmailSummary = () => {
               <Label htmlFor="start-date">Date de début</Label>
               <Input
                 id="start-date"
-                ref={startRef}
                 type="datetime-local"
+                value={manualStartDate}
+                onChange={(e) => setManualStartDate(e.target.value)}
               />
             </div>
             <div className="space-y-2">
               <Label htmlFor="end-date">Date de fin</Label>
               <Input
                 id="end-date"
-                ref={endRef}
                 type="datetime-local"
+                value={manualEndDate}
+                onChange={(e) => setManualEndDate(e.target.value)}
               />
             </div>
           </div>
