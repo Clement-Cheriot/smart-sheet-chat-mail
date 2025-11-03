@@ -91,6 +91,33 @@ serve(async (req) => {
   }
 });
 
+async function refreshAccessToken(credentials: any): Promise<string> {
+  const clientId = Deno.env.get('GOOGLE_OAUTH_CLIENT_ID');
+  const clientSecret = Deno.env.get('GOOGLE_OAUTH_CLIENT_SECRET');
+  
+  if (!credentials.refresh_token) {
+    throw new Error('No refresh token available');
+  }
+
+  const response = await fetch('https://oauth2.googleapis.com/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      client_id: clientId!,
+      client_secret: clientSecret!,
+      refresh_token: credentials.refresh_token,
+      grant_type: 'refresh_token',
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error('Failed to refresh access token');
+  }
+
+  const data = await response.json();
+  return data.access_token;
+}
+
 async function fetchRulesFromSheets(
   sheetsId: string,
   credentials: any
@@ -103,23 +130,36 @@ async function fetchRulesFromSheets(
     
     console.log('Fetching rules from Google Sheets:', spreadsheetId);
 
-    // Get access token from credentials
-    const accessToken = credentials.access_token;
+    // Try with current access token, refresh if needed
+    let accessToken = credentials.access_token;
     if (!accessToken) {
       throw new Error('No access token available');
     }
 
     // Fetch data from Google Sheets
-    // Expecting columns: Label, Sender Pattern, Keywords, Priority, Auto Action, Response Template
+    // Format: rule_id | classification | priority | enables | conditions | description
     const range = 'A2:F100'; // Skip header row, fetch up to 100 rules
     const url = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${range}`;
     
-    const response = await fetch(url, {
+    let response = await fetch(url, {
       headers: {
         'Authorization': `Bearer ${accessToken}`,
         'Content-Type': 'application/json',
       },
     });
+
+    // If 401/403, try refreshing token
+    if (!response.ok && (response.status === 401 || response.status === 403)) {
+      console.log('Access token expired, refreshing...');
+      accessToken = await refreshAccessToken(credentials);
+      
+      response = await fetch(url, {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+      });
+    }
 
     if (!response.ok) {
       const error = await response.text();
@@ -132,17 +172,28 @@ async function fetchRulesFromSheets(
 
     console.log(`Found ${rows.length} rules in Google Sheets`);
 
-    // Transform rows into rule objects
+    // Transform rows: rule_id | classification | priority | enables | conditions | description
     return rows
-      .filter((row: string[]) => row[0]) // Must have a label
-      .map((row: string[]) => ({
-        label_to_apply: row[0] || '',
-        sender_pattern: row[1] || null,
-        keywords: row[2] ? row[2].split(',').map((k: string) => k.trim()) : [],
-        priority: row[3] || 'medium',
-        auto_action: row[4] || 'label',
-        response_template: row[5] || null,
-      }));
+      .filter((row: string[]) => row[0] && row[1]) // Must have rule_id and classification
+      .map((row: string[]) => {
+        // Parse conditions JSON (should contain sender_pattern, keywords, etc.)
+        let parsedConditions: any = {};
+        try {
+          parsedConditions = row[4] ? JSON.parse(row[4]) : {};
+        } catch (e) {
+          console.warn(`Failed to parse conditions for rule ${row[0]}:`, e);
+        }
+
+        return {
+          label_to_apply: row[1] || '', // classification
+          sender_pattern: parsedConditions.sender_pattern || null,
+          keywords: parsedConditions.keywords || [],
+          priority: row[2]?.toLowerCase() || 'medium', // priority
+          auto_action: parsedConditions.auto_action || 'label',
+          response_template: row[5] || null, // description
+          is_active: row[3]?.toLowerCase() === 'true' || row[3] === '1' || true, // enables
+        };
+      });
   } catch (error) {
     console.error('Error fetching from Google Sheets:', error);
     throw error;

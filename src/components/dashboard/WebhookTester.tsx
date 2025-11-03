@@ -84,6 +84,27 @@ export const WebhookTester = () => {
     }
   };
 
+  const syncEmails = async () => {
+    try {
+      const { data, error } = await supabase.functions.invoke('gmail-sync', {
+        body: { userId: user?.id }
+      });
+
+      if (error) throw error;
+
+      toast({
+        title: 'Synchronisation réussie',
+        description: `${data.processedCount} nouveaux emails ont été traités`,
+      });
+    } catch (error: any) {
+      toast({
+        title: 'Erreur',
+        description: error.message,
+        variant: 'destructive',
+      });
+    }
+  };
+
   return (
     <div className="space-y-6">
       <Card>
@@ -182,7 +203,25 @@ export const WebhookTester = () => {
             Synchroniser les règles
           </Button>
           <p className="text-xs text-muted-foreground mt-2">
-            Assurez-vous d'avoir configuré votre Google Sheets ID dans Configuration
+            Format: rule_id | classification | priority | enables | conditions | description
+          </p>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Récupération des emails</CardTitle>
+          <CardDescription>
+            Synchronisez vos derniers emails Gmail
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Button onClick={syncEmails} variant="outline" className="w-full">
+            <RefreshCw className="mr-2 h-4 w-4" />
+            Récupérer les nouveaux emails
+          </Button>
+          <p className="text-xs text-muted-foreground mt-2">
+            Les emails seront traités et ajoutés à l'historique
           </p>
         </CardContent>
       </Card>
