@@ -73,21 +73,66 @@ serve(async (req) => {
     // Calculate priority score
     const priorityScore = calculatePriorityScore(aiAnalysis, appliedRule);
 
-    // Determine if we should create a draft
-    // Skip draft creation for newsletters/marketing if rule excludes them
+    // Determine if we should create a draft based on AI analysis first
     let shouldCreateDraft = false;
-    if (appliedRule?.create_draft) {
-      const isNewsletter = aiAnalysis.category === 'newsletter' || appliedLabel?.toLowerCase().includes('newsletter');
-      const isMarketing = aiAnalysis.category === 'marketing' || emailData.sender.toLowerCase().includes('marketing');
+    let shouldAutoReply = false;
+    
+    // AI-driven response decision (primary)
+    if (aiAnalysis.needs_response && aiAnalysis.response_type !== 'none') {
+      const isNewsletter = aiAnalysis.category === 'newsletter';
+      const isMarketing = aiAnalysis.category === 'marketing';
       
-      if (isNewsletter && appliedRule.exclude_newsletters) {
-        console.log('Skipping draft creation: newsletter excluded by rule');
-      } else if (isMarketing && appliedRule.exclude_marketing) {
-        console.log('Skipping draft creation: marketing excluded by rule');
+      // Check if rule allows it
+      if (appliedRule) {
+        // Rule can override AI decision
+        if (aiAnalysis.response_type === 'draft' && appliedRule.create_draft !== false) {
+          if (isNewsletter && appliedRule.exclude_newsletters) {
+            console.log('Skipping draft: newsletter excluded by rule');
+          } else if (isMarketing && appliedRule.exclude_marketing) {
+            console.log('Skipping draft: marketing excluded by rule');
+          } else {
+            shouldCreateDraft = true;
+          }
+        } else if (aiAnalysis.response_type === 'auto_reply' && appliedRule.auto_reply) {
+          if (isNewsletter && appliedRule.exclude_newsletters) {
+            console.log('Skipping auto-reply: newsletter excluded by rule');
+          } else if (isMarketing && appliedRule.exclude_marketing) {
+            console.log('Skipping auto-reply: marketing excluded by rule');
+          } else {
+            shouldAutoReply = true;
+          }
+        }
       } else {
-        shouldCreateDraft = true;
+        // No rule, use AI decision directly (but still exclude newsletters/marketing)
+        if (!isNewsletter && !isMarketing) {
+          if (aiAnalysis.response_type === 'draft') {
+            shouldCreateDraft = true;
+          } else if (aiAnalysis.response_type === 'auto_reply') {
+            shouldAutoReply = true;
+          }
+        }
       }
     }
+    
+    // Rule can also force draft creation even if AI says no (backwards compatibility)
+    if (appliedRule?.create_draft && !shouldCreateDraft && !shouldAutoReply) {
+      const isNewsletter = aiAnalysis.category === 'newsletter';
+      const isMarketing = aiAnalysis.category === 'marketing';
+      
+      if (!(isNewsletter && appliedRule.exclude_newsletters) && 
+          !(isMarketing && appliedRule.exclude_marketing)) {
+        shouldCreateDraft = true;
+        console.log('Draft forced by rule override');
+      }
+    }
+    
+    console.log('Response decision:', { 
+      aiNeedsResponse: aiAnalysis.needs_response,
+      aiResponseType: aiAnalysis.response_type,
+      aiReasoning: aiAnalysis.response_reasoning,
+      shouldCreateDraft,
+      shouldAutoReply 
+    });
 
     // Determine actions taken
     const actionsTaken = [];
@@ -142,32 +187,39 @@ serve(async (req) => {
       });
     }
 
-    // Generate draft if needed
+    // Generate draft or auto-reply if needed
     let draftResult = null;
-    if (shouldCreateDraft) {
-      console.log('Generating draft response');
+    if (shouldCreateDraft || shouldAutoReply) {
+      const actionType = shouldAutoReply ? 'send_reply' : 'create_draft';
+      console.log(`Generating ${actionType}`);
+      
       const { data: draftData } = await supabase.functions.invoke('gmail-actions', {
         body: {
-          action: 'create_draft',
+          action: actionType,
           userId: emailData.userId,
           messageId: emailData.messageId,
           emailContext: {
             sender: emailData.sender,
             subject: emailData.subject,
             body: emailData.body,
+            aiResponseReasoning: aiAnalysis.response_reasoning,
           },
-          template: appliedRule.response_template,
+          template: appliedRule?.response_template,
         }
       });
 
-      if (draftData?.draftId) {
+      if (draftData?.draftId || draftData?.sent) {
         draftResult = draftData;
         await supabase
           .from('email_history')
           .update({ 
-            draft_created: true, 
+            draft_created: shouldCreateDraft,
             draft_id: draftData.draftId,
-            actions_taken: [...actionsTaken, { type: 'draft_created', value: true }]
+            actions_taken: [...actionsTaken, { 
+              type: shouldAutoReply ? 'auto_reply_sent' : 'draft_created', 
+              value: true,
+              reasoning: aiAnalysis.response_reasoning 
+            }]
           })
           .eq('id', historyRecord.id);
       }
@@ -266,14 +318,17 @@ Corps: ${body.substring(0, 1000)}
 Fournis une réponse JSON avec:
 1. sentiment: positive/neutral/negative
 2. urgency: échelle de 1 à 10
-3. category: work/personal/newsletter/spam/billing/support/other
+3. category: work/personal/newsletter/spam/billing/support/marketing/other
 4. key_entities: tableau des noms importants, dates, montants mentionnés
 5. suggested_action: reply/forward/archive/review/urgent_response
 6. body_summary: Résumé bref en 2-3 phrases du contenu de l'email EN FRANÇAIS
 7. reasoning: Explique ton analyse et pourquoi tu as choisi ces classifications EN FRANÇAIS
 8. suggested_label: Si cela ne correspond à aucune catégorie existante, suggère un nouveau nom de label
 9. needs_calendar_action: boolean - est-ce que cela mentionne une réunion/événement à mettre au calendrier?
-10. is_urgent_whatsapp: boolean - est-ce suffisamment urgent pour justifier une notification WhatsApp immédiate?`;
+10. is_urgent_whatsapp: boolean - est-ce suffisamment urgent pour justifier une notification WhatsApp immédiate?
+11. needs_response: boolean - est-ce que cet email nécessite une réponse? (false pour newsletters, pubs, notifications automatiques, etc.)
+12. response_type: "none" | "draft" | "auto_reply" - quel type de réponse serait approprié? "draft" = brouillon à personnaliser, "auto_reply" = réponse simple et automatique, "none" = pas de réponse nécessaire
+13. response_reasoning: string - explique pourquoi tu recommandes ce type de réponse EN FRANÇAIS`;
 
     const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
@@ -329,6 +384,9 @@ Fournis une réponse JSON avec:
       suggested_label: null,
       needs_calendar_action: false,
       is_urgent_whatsapp: false,
+      needs_response: false,
+      response_type: 'none',
+      response_reasoning: 'AI analysis unavailable',
     };
   }
 }
