@@ -33,6 +33,15 @@ serve(async (req) => {
     const credentials = config.gmail_credentials;
     let accessToken = credentials.access_token;
 
+    // Load last sync checkpoint
+    let lastSyncedAt = new Date(Date.now() - 3600 * 1000).toISOString(); // default to last hour
+    const { data: state } = await supabase
+      .from('gmail_sync_state')
+      .select('last_synced_at')
+      .eq('user_id', userId)
+      .maybeSingle();
+    if (state?.last_synced_at) lastSyncedAt = state.last_synced_at;
+
     // Get all processed message IDs to avoid duplicates
     const { data: processedEmails } = await supabase
       .from('email_history')
@@ -41,9 +50,9 @@ serve(async (req) => {
 
     const processedIds = new Set(processedEmails?.map(e => e.gmail_message_id) || []);
 
-    // Fetch recent messages from Gmail (last 24 hours)
-    const oneDayAgo = Math.floor(Date.now() / 1000) - 86400;
-    const gmailUrl = `https://gmail.googleapis.com/gmail/v1/users/me/messages?q=after:${oneDayAgo}&maxResults=50`;
+    // Fetch recent messages from Gmail since last sync
+    const afterEpoch = Math.floor(new Date(lastSyncedAt).getTime() / 1000);
+    const gmailUrl = `https://gmail.googleapis.com/gmail/v1/users/me/messages?q=after:${afterEpoch}&maxResults=50`;
 
     let response = await fetch(gmailUrl, {
       headers: { 'Authorization': `Bearer ${accessToken}` },
@@ -105,6 +114,7 @@ serve(async (req) => {
         const sender = getHeader('from');
         const subject = getHeader('subject');
         const date = getHeader('date');
+        const receivedAtISO = date ? new Date(date).toISOString() : new Date().toISOString();
         
         // Extract body
         let body = '';
@@ -127,7 +137,7 @@ serve(async (req) => {
             sender,
             subject,
             body,
-            receivedAt: date || new Date().toISOString(),
+            receivedAt: receivedAtISO,
           }
         });
         
@@ -140,6 +150,13 @@ serve(async (req) => {
         console.error(`Exception processing message ${message.id}:`, err);
       }
     }
+    // Update sync checkpoint
+    await supabase
+      .from('gmail_sync_state')
+      .upsert(
+        { user_id: userId, last_synced_at: new Date().toISOString() },
+        { onConflict: 'user_id' }
+      );
 
     return new Response(
       JSON.stringify({ 

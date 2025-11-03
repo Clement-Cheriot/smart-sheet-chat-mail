@@ -119,10 +119,18 @@ export const EmailHistory = () => {
 
       if (error) throw error;
 
+      // Advance sync checkpoint to now to avoid reimporting old emails
+      await supabase
+        .from('gmail_sync_state')
+        .upsert(
+          { user_id: user?.id as string, last_synced_at: new Date().toISOString() },
+          { onConflict: 'user_id' }
+        );
+
       setEmails([]);
       toast({
         title: 'Historique vidé',
-        description: 'Tous les emails ont été supprimés',
+        description: 'Le cache a été réinitialisé, les anciens emails ne seront plus rechargés',
       });
     } catch (error: any) {
       toast({ title: 'Erreur', description: error.message, variant: 'destructive' });
@@ -135,6 +143,17 @@ export const EmailHistory = () => {
     if (score >= 7) return 'destructive';
     if (score >= 4) return 'default';
     return 'secondary';
+  };
+
+  const getDisplaySender = (s: string) => {
+    if (!s) return 'Inconnu';
+    const match = s.match(/(.+?)<(.+?)>/);
+    if (match) {
+      const name = match[1].trim().replace(/"/g, '');
+      const email = match[2].trim();
+      return `${name} (${email})`;
+    }
+    return s;
   };
 
   if (loading) {
@@ -170,7 +189,7 @@ export const EmailHistory = () => {
         <div className="flex justify-end">
           <Button variant="outline" onClick={clearAllEmails} disabled={isClearing}>
             <Trash className="mr-2 h-4 w-4" />
-            {isClearing ? 'Suppression...' : 'Vider l\'historique'}
+            {isClearing ? 'Suppression...' : 'Vider le cache'}
           </Button>
         </div>
       )}
@@ -182,7 +201,7 @@ export const EmailHistory = () => {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-1">
                     <Mail className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                    <p className="font-medium truncate">{email.sender}</p>
+                    <p className="font-medium truncate">Expéditeur : {getDisplaySender(email.sender)}</p>
                   </div>
                   <CardTitle className="text-sm font-medium mb-1">
                     {email.subject || 'Sans objet'}
