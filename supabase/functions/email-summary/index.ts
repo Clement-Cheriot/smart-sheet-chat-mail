@@ -52,12 +52,26 @@ serve(async (req) => {
     // Calculate statistics with richer breakdowns
     const totalEmails = emails?.length || 0;
 
-    const pendingReviewList = (emails || []).filter((e: any) => {
-      const hasLabel = Array.isArray(e.applied_label) ? e.applied_label.length > 0 : !!e.applied_label;
-      const hasActions = Array.isArray(e.actions_taken) ? e.actions_taken.length > 0 : false;
-      return !hasLabel && !e.draft_created && !hasActions; // nothing applied/generated yet
-    });
-    const pendingReview = pendingReviewList.length;
+    // Count by action labels
+    const actionsToReply = (emails || []).filter((e: any) => {
+      const labels = Array.isArray(e.applied_label) ? e.applied_label : [];
+      return labels.some((l: string) => l.includes('Actions/A répondre'));
+    }).length;
+
+    const actionsToDelete = (emails || []).filter((e: any) => {
+      const labels = Array.isArray(e.applied_label) ? e.applied_label : [];
+      return labels.some((l: string) => l.includes('Actions/A supprimer'));
+    }).length;
+
+    const actionsManualReview = (emails || []).filter((e: any) => {
+      const labels = Array.isArray(e.applied_label) ? e.applied_label : [];
+      return labels.some((l: string) => l.includes('Actions/Revue Manuelle'));
+    }).length;
+
+    const actionsNothing = (emails || []).filter((e: any) => {
+      const labels = Array.isArray(e.applied_label) ? e.applied_label : [];
+      return labels.some((l: string) => l.includes('Actions/Rien à faire'));
+    }).length;
 
     const draftsCreated = (emails || []).filter((e: any) => e.draft_created).length;
     const autoReplies = (emails || []).filter((e: any) =>
@@ -67,14 +81,15 @@ serve(async (req) => {
     const notificationsSent = (emails || []).filter((e: any) => e.whatsapp_notified).length;
     const calendarActions = (emails || []).filter((e: any) => e.ai_analysis?.needs_calendar_action).length;
 
-    // Group pending review by sender and category
-    const bySender: Record<string, number> = {};
-    const byCategory: Record<string, number> = {};
-    pendingReviewList.forEach((e: any) => {
-      const sender = e.sender || 'Expéditeur inconnu';
-      bySender[sender] = (bySender[sender] || 0) + 1;
-      const cat = e.ai_analysis?.category || 'divers';
-      byCategory[cat] = (byCategory[cat] || 0) + 1;
+    // Count by categories (excluding Actions/ labels)
+    const categoryCounts: Record<string, number> = {};
+    (emails || []).forEach((e: any) => {
+      const labels = Array.isArray(e.applied_label) ? e.applied_label : [];
+      labels.forEach((label: string) => {
+        if (!label.startsWith('Actions/')) {
+          categoryCounts[label] = (categoryCounts[label] || 0) + 1;
+        }
+      });
     });
 
     // Suggested new labels and rule reinforcements
@@ -87,36 +102,32 @@ serve(async (req) => {
       .filter((v: any) => !!v) as string[];
 
     // Build summary in requested format (FR)
-    const formatFR = (d: Date) => d.toLocaleString('fr-FR', { dateStyle: 'medium', timeStyle: 'short' });
+    const formatFR = (d: Date) => d.toLocaleString('fr-FR', { 
+      dateStyle: 'medium', 
+      timeStyle: 'short',
+      timeZone: 'Europe/Paris'
+    });
 
     const lines: string[] = [];
     lines.push(`Résumé du ${formatFR(startTime)} au ${formatFR(endTime)}:`);
     lines.push(`📊 Total emails traités : ${totalEmails}`);
-    lines.push(`⚠️ En attente de revue manuelle : ${pendingReview}`);
+    lines.push(`⚠️ En attente de revue manuelle : ${actionsManualReview}`);
+    lines.push(`🗑️ À supprimer : ${actionsToDelete}`);
+    lines.push(`📧 À répondre : ${actionsToReply}`);
+    lines.push(`✅ Rien à faire : ${actionsNothing}`);
     lines.push(`📝 Brouillons écrits : ${draftsCreated}`);
     lines.push(`🤖 Réponses automatiques : ${autoReplies}`);
     lines.push(`🔔 Notifications envoyées : ${notificationsSent}`);
     lines.push(`📅 Calendar : ${calendarActions}`);
     lines.push('');
 
-    if (pendingReview > 0) {
-      lines.push(`📁 Détails des emails à revoir :`);
-      // Top senders (up to 3)
-      const topSenders = Object.entries(bySender)
-        .sort((a, b) => b[1] - a[1])
-        .slice(0, 3);
-      topSenders.forEach(([sender, count]) => {
-        lines.push(`• ${count} email${count > 1 ? 's' : ''} de ${sender} nécessitent une revue manuelle, car ils n'ont pas de règles existantes.`);
-      });
-      
-      // Top categories
-      lines.push('');
-      lines.push('📊 Top catégories traitées :');
-      const topCategories = Object.entries(byCategory)
-        .sort((a, b) => b[1] - a[1])
-        .slice(0, 5);
-      topCategories.forEach(([cat, count]) => {
-        lines.push(`• ${cat}: ${count} email${count > 1 ? 's' : ''}`);
+    // Show categories
+    if (Object.keys(categoryCounts).length > 0) {
+      lines.push('📂 Catégories :');
+      const sortedCategories = Object.entries(categoryCounts)
+        .sort((a, b) => b[1] - a[1]);
+      sortedCategories.forEach(([cat, count]) => {
+        lines.push(`• ${cat}: ${count}`);
       });
       lines.push('');
     }
@@ -136,7 +147,8 @@ serve(async (req) => {
     }
 
     lines.push('🔄 Action :');
-    if (pendingReview > 0) lines.push(`Revoir les ${pendingReview} email${pendingReview > 1 ? 's' : ''} manuellement.`);
+    if (actionsManualReview > 0) lines.push(`Revoir les ${actionsManualReview} email${actionsManualReview > 1 ? 's' : ''} manuellement.`);
+    if (actionsToReply > 0) lines.push(`Répondre à ${actionsToReply} email${actionsToReply > 1 ? 's' : ''}.`);
     if (draftsCreated > 0) lines.push('Voir les brouillons proposés.');
     if (notificationsSent > 0) lines.push('Vérifier les notifications envoyées.');
 
@@ -155,7 +167,18 @@ serve(async (req) => {
     await supabase.from('activity_logs').insert({
       user_id: userId,
       action_type: 'summary_sent',
-      action_details: { period, totalEmails, pendingReview, draftsCreated, autoReplies, notificationsSent, calendarActions },
+      action_details: { 
+        period, 
+        totalEmails, 
+        actionsManualReview,
+        actionsToDelete,
+        actionsToReply,
+        actionsNothing,
+        draftsCreated, 
+        autoReplies, 
+        notificationsSent, 
+        calendarActions 
+      },
       status: 'success'
     });
 
@@ -165,7 +188,10 @@ serve(async (req) => {
         summary: summaryMessage,
         stats: {
           totalEmails,
-          pendingReview,
+          actionsManualReview,
+          actionsToDelete,
+          actionsToReply,
+          actionsNothing,
           draftsCreated,
           autoReplies,
           notificationsSent,

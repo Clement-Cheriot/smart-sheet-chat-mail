@@ -139,7 +139,7 @@ export const EmailSummary = () => {
 
   const sendManualSummary = async () => {
     if (!manualStartDate || !manualEndDate) {
-      toast({ title: 'Erreur', description: 'Veuillez sélectionner les dates', variant: 'destructive' });
+      toast({ title: 'Erreur', description: 'Veuillez insérer les dates de début et de fin', variant: 'destructive' });
       return;
     }
 
@@ -250,24 +250,37 @@ export const EmailSummary = () => {
 
     setGeneratingAudio(true);
     try {
-      const { data, error } = await supabase.functions.invoke('text-to-speech', {
-        body: {
-          text: latestSummary.content,
-          voiceId: '9BWtsMINqrJLrRacOk9x', // Aria voice
-        },
-      });
+      // Use Web Speech API (native browser TTS - no API key needed)
+      if (!('speechSynthesis' in window)) {
+        throw new Error('Votre navigateur ne supporte pas la synthèse vocale');
+      }
 
-      if (error) throw error;
+      const utterance = new SpeechSynthesisUtterance(latestSummary.content);
+      utterance.lang = 'fr-FR';
+      utterance.rate = 1.0;
+      utterance.pitch = 1.0;
+      
+      // Find a French voice if available
+      const voices = window.speechSynthesis.getVoices();
+      const frenchVoice = voices.find(v => v.lang.startsWith('fr'));
+      if (frenchVoice) {
+        utterance.voice = frenchVoice;
+      }
 
-      // Create audio element and play
-      const audio = new Audio(`data:audio/mpeg;base64,${data.audioContent}`);
-      await audio.play();
-
-      toast({ title: 'Succès', description: 'Audio généré et lu' });
+      window.speechSynthesis.speak(utterance);
+      
+      utterance.onend = () => {
+        setGeneratingAudio(false);
+        toast({ title: 'Succès', description: 'Lecture audio terminée' });
+      };
+      
+      utterance.onerror = (e) => {
+        setGeneratingAudio(false);
+        toast({ title: 'Erreur', description: 'Erreur lors de la lecture audio', variant: 'destructive' });
+      };
     } catch (error: any) {
       console.error('Error generating audio:', error);
       toast({ title: 'Erreur', description: error.message || 'Échec de la génération audio', variant: 'destructive' });
-    } finally {
       setGeneratingAudio(false);
     }
   };
