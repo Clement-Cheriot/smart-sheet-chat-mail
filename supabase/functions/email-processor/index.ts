@@ -48,12 +48,17 @@ serve(async (req) => {
 
     if (rulesError) throw rulesError;
 
-    // Analyze email with AI
+    // Analyze email with AI - pass existing rules for better matching
+    const existingLabels = (rules || [])
+      .map((r: any) => r.label_to_apply)
+      .filter((label: string | null) => label != null);
+    
     const aiAnalysis = await analyzeEmailWithAI(
       emailData.sender,
       emailData.subject,
       emailData.body,
-      lovableApiKey
+      lovableApiKey,
+      existingLabels
     );
 
     console.log('AI Analysis:', aiAnalysis);
@@ -155,16 +160,17 @@ serve(async (req) => {
       appliedLabels.push('Needs Manual Review');
     }
 
-    // Determine rule reinforcement suggestion (only if no rule matched)
+    // Use AI matched label or suggest new one
+    let finalLabel = null;
     let ruleReinforcement = null;
-    const knownCategories = ['work','personal','newsletter','spam','billing','support','marketing','other'];
-    const suggestedLabel = (
-      matchedRules.length === 0 &&
-      (!knownCategories.includes(aiAnalysis.category) || aiAnalysis.category === 'other') &&
-      aiAnalysis.suggested_label
-    ) ? aiAnalysis.suggested_label : null;
-    if (suggestedLabel && matchedRules.length === 0) {
-      ruleReinforcement = `Consider adding rule for label "${suggestedLabel}" based on similar patterns`;
+    
+    if (aiAnalysis.matched_label) {
+      // AI found a match with existing label
+      finalLabel = aiAnalysis.matched_label;
+    } else if (aiAnalysis.suggested_label && matchedRules.length === 0) {
+      // AI suggests a new label
+      finalLabel = aiAnalysis.suggested_label;
+      ruleReinforcement = `Considérer l'ajout d'une règle pour le label "${finalLabel}"`;
     }
 
     // Save to email history with upsert to avoid duplicates
@@ -182,7 +188,7 @@ serve(async (req) => {
         draft_created: false,
         body_summary: aiAnalysis.body_summary || emailData.body?.substring(0, 200),
         ai_reasoning: aiAnalysis.reasoning,
-        suggested_new_label: suggestedLabel,
+        suggested_new_label: finalLabel,
         rule_reinforcement_suggestion: ruleReinforcement,
         actions_taken: actionsTaken,
       }, { onConflict: 'user_id,gmail_message_id' })
@@ -337,30 +343,40 @@ async function analyzeEmailWithAI(
   sender: string,
   subject: string,
   body: string,
-  apiKey: string
+  apiKey: string,
+  existingLabels: string[]
 ): Promise<any> {
   try {
-    const prompt = `Analyse cet email et fournis des informations structurées détaillées EN FRANÇAIS:
+    const labelsContext = existingLabels.length > 0 
+      ? `\n\nLABELS EXISTANTS (à privilégier): ${existingLabels.join(', ')}`
+      : '';
+    
+    const prompt = `Analyse cet email et fournis des informations structurées EN FRANÇAIS:
 
 De: ${sender}
 Sujet: ${subject}
-Corps: ${body.substring(0, 1000)}
+Corps: ${body.substring(0, 1000)}${labelsContext}
+
+IMPORTANT - Processus de décision pour le label:
+1. D'ABORD, vérifie si l'email correspond à un des LABELS EXISTANTS ci-dessus
+2. Si OUI, utilise CE label exact (même orthographe)
+3. Si NON, suggère un nouveau label THÉMATIQUE/CATÉGORIEL générique
+4. NE JAMAIS suggérer des noms de personnes/entreprises/produits spécifiques
 
 Fournis une réponse JSON avec:
-1. sentiment: positive/neutral/negative
-2. urgency: échelle de 1 à 10
-3. category: work/personal/newsletter/spam/billing/support/marketing/other
-4. key_entities: tableau des noms importants, dates, montants mentionnés
-5. suggested_action: reply/forward/archive/review/urgent_response
-6. body_summary: Résumé bref en 2-3 phrases du contenu de l'email EN FRANÇAIS
-7. reasoning: Explique ton analyse et pourquoi tu as choisi ces classifications EN FRANÇAIS
-8. suggested_label: Si cela ne correspond à AUCUNE catégorie existante, suggère un nouveau label THÉMATIQUE/CATÉGORIEL générique (ex: "Devis clients", "RDV médicaux", "Formation", "Comptabilité"). NE JAMAIS suggérer des noms de personnes, d'entreprises spécifiques ou de produits. Le label doit être réutilisable pour des emails similaires futurs. Si l'email correspond déjà à une catégorie standard (work/personal/newsletter/spam/billing/support/marketing), retourne null.
-9. needs_calendar_action: boolean - est-ce que cela mentionne une réunion/événement à mettre au calendrier?
-10. calendar_details: Si needs_calendar_action=true, extraire {title: string, date: string (ISO), duration_minutes: number, location?: string, attendees?: string[]}
-11. is_urgent_whatsapp: boolean - est-ce suffisamment urgent pour justifier une notification WhatsApp immédiate?
-12. needs_response: boolean - est-ce que cet email nécessite une réponse? (false pour newsletters, pubs, notifications automatiques, etc.)
-13. response_type: "none" | "draft" | "auto_reply" - quel type de réponse serait approprié? "draft" = brouillon à personnaliser, "auto_reply" = réponse simple et automatique, "none" = pas de réponse nécessaire
-14. response_reasoning: string - explique pourquoi tu recommandes ce type de réponse EN FRANÇAIS`;
+1. urgency: échelle de 1 à 10
+2. key_entities: tableau des noms importants, dates, montants
+3. suggested_action: reply/forward/archive/review/urgent_response
+4. body_summary: Résumé bref en 2-3 phrases EN FRANÇAIS
+5. reasoning: Explique UNIQUEMENT pourquoi tu as choisi ce label (check des règles existantes) EN FRANÇAIS
+6. matched_label: Si l'email correspond à un label existant, mets-le ici (sinon null)
+7. suggested_label: Si matched_label est null ET aucune catégorie standard ne convient, suggère un nouveau label thématique
+8. needs_calendar_action: boolean
+9. calendar_details: Si needs_calendar_action=true, {title, date (ISO), duration_minutes, location?, attendees?}
+10. is_urgent_whatsapp: boolean
+11. needs_response: boolean
+12. response_type: "none" | "draft" | "auto_reply"
+13. response_reasoning: string EN FRANÇAIS`;
 
     const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
@@ -369,7 +385,7 @@ Fournis une réponse JSON avec:
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'google/gemini-2.5-flash',
+        model: 'openai/gpt-5-mini',
         messages: [
           {
             role: 'system',
@@ -380,7 +396,6 @@ Fournis une réponse JSON avec:
             content: prompt,
           },
         ],
-        temperature: 0.3,
       }),
     });
 
@@ -406,13 +421,12 @@ Fournis une réponse JSON avec:
     console.error('AI analysis error:', error);
     // Return default analysis
     return {
-      sentiment: 'neutral',
       urgency: 5,
-      category: 'general',
       key_entities: [],
       suggested_action: 'review',
       body_summary: body.substring(0, 200),
       reasoning: 'AI analysis unavailable, using defaults',
+      matched_label: null,
       suggested_label: null,
       needs_calendar_action: false,
       is_urgent_whatsapp: false,
