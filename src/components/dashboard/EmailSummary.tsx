@@ -138,13 +138,21 @@ export const EmailSummary = () => {
   };
 
   const sendManualSummary = async () => {
-    if (!manualStartDate || !manualEndDate) {
-      toast({ title: 'Erreur', description: 'Veuillez sélectionner les dates de début et de fin', variant: 'destructive' });
+    const startRaw = (manualStartDate || '').trim();
+    const endRaw = (manualEndDate || '').trim();
+
+    if (!startRaw || !endRaw) {
+      toast({ title: 'Erreur', description: 'Veuillez insérer les dates de début et de fin', variant: 'destructive' });
       return;
     }
 
-    const startDate = new Date(manualStartDate);
-    const endDate = new Date(manualEndDate);
+    const startDate = new Date(startRaw);
+    const endDate = new Date(endRaw);
+
+    if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+      toast({ title: 'Erreur', description: 'Format de date invalide', variant: 'destructive' });
+      return;
+    }
 
     if (startDate > endDate) {
       toast({ title: 'Erreur', description: 'La date de début doit être antérieure à la date de fin', variant: 'destructive' });
@@ -168,7 +176,7 @@ export const EmailSummary = () => {
         user_id: user?.id,
         period_start: startDate.toISOString(),
         period_end: endDate.toISOString(),
-        summary_content: data.summary,
+        summary_content: (data as any)?.summary,
       });
 
       toast({ title: 'Succès', description: 'Résumé généré et enregistré' });
@@ -392,6 +400,7 @@ export const EmailSummary = () => {
               <Input
                 id="start-date"
                 type="datetime-local"
+                step={60}
                 value={manualStartDate}
                 onChange={(e) => setManualStartDate(e.target.value)}
               />
@@ -401,6 +410,7 @@ export const EmailSummary = () => {
               <Input
                 id="end-date"
                 type="datetime-local"
+                step={60}
                 value={manualEndDate}
                 onChange={(e) => setManualEndDate(e.target.value)}
               />
