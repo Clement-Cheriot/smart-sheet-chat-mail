@@ -49,9 +49,29 @@ serve(async (req) => {
     if (rulesError) throw rulesError;
 
     // Analyze email with AI - pass existing rules for better matching
-    const existingLabels = (rules || [])
+    // Build existing labels from rules + user history
+    const ruleLabels = (rules || [])
       .map((r: any) => r.label_to_apply)
       .filter((label: string | null) => label != null);
+
+    const { data: historyRows, error: historyLabelsError } = await supabase
+      .from('email_history')
+      .select('applied_label')
+      .eq('user_id', emailData.userId)
+      .not('applied_label', 'is', null)
+      .limit(1000);
+    if (historyLabelsError) {
+      console.error('Failed to fetch history labels:', historyLabelsError);
+    }
+    const historyLabels = Array.from(
+      new Set(
+        (historyRows || [])
+          .flatMap((r: any) => Array.isArray(r.applied_label) ? r.applied_label : [])
+          .filter((l: any) => typeof l === 'string')
+      )
+    );
+
+    const existingLabels = Array.from(new Set([...(ruleLabels as string[]), ...historyLabels]));
     
     const aiAnalysis = await analyzeEmailWithAI(
       emailData.sender,
@@ -71,8 +91,15 @@ serve(async (req) => {
     let appliedLabels: string[] = [];
     let appliedRuleId: any = null;
     let shouldNotifyUrgent = false;
-    let categoryLabel = aiAnalysis.category_label || null;
-    let actionLabel = aiAnalysis.action_label || null;
+    // Prefer AI-selected existing label; only fallback to rules if AI didn't pick one
+    let categoryLabel: string | null = null;
+    const aiMatchedLabel: string | null = aiAnalysis?.matched_label ?? null;
+    if (aiMatchedLabel && existingLabels.includes(aiMatchedLabel)) {
+      categoryLabel = aiMatchedLabel;
+    } else if (aiAnalysis?.category_label && existingLabels.includes(aiAnalysis.category_label)) {
+      categoryLabel = aiAnalysis.category_label;
+    }
+    let actionLabel: string | null = aiAnalysis.action_label || null;
     
     if (matchedRules.length > 0) {
       // Sort by rule_order and take the first matching rule for primary action
@@ -82,9 +109,11 @@ serve(async (req) => {
       appliedRuleId = primaryRule;
       
       // Use rule's label as category label (overrides AI suggestion)
-      if (primaryRule.label_to_apply) {
+      if (primaryRule.label_to_apply && !categoryLabel) {
         categoryLabel = primaryRule.label_to_apply;
-        console.log(`Using label "${primaryRule.label_to_apply}" from matched rule (priority ${primaryRule.rule_order})`);
+        console.log(`Using label "${primaryRule.label_to_apply}" from matched rule (priority ${primaryRule.rule_order}) as fallback`);
+      } else if (categoryLabel) {
+        console.log(`Using AI-selected existing label: "${categoryLabel}"`);
       }
       
       // Check if any rule has notify_urgent
@@ -151,15 +180,27 @@ serve(async (req) => {
       shouldAutoReply 
     });
 
+    // Infer action label from suggested_action if missing
+    const actionMap: Record<string, string> = {
+      reply: 'Actions/A répondre',
+      urgent_response: 'Actions/A répondre',
+      review: 'Actions/Revue Manuelle',
+      archive: 'Actions/Rien à faire',
+      forward: 'Actions/Revue Manuelle',
+    };
+    if (!actionLabel && aiAnalysis?.suggested_action) {
+      actionLabel = actionMap[aiAnalysis.suggested_action] || 'Actions/Revue Manuelle';
+    }
+
     // Build final labels: category + action
     appliedLabels = [];
     
-    // Add category label (from rule or AI)
+    // Add category label (from AI or rule fallback)
     if (categoryLabel) {
       appliedLabels.push(categoryLabel);
     }
     
-    // Add action label (always from AI)
+    // Add action label (from AI or inferred)
     if (actionLabel) {
       appliedLabels.push(actionLabel);
     }
@@ -177,9 +218,9 @@ serve(async (req) => {
     let ruleReinforcement = null;
     let suggestedNewLabel = null;
     
-    if (matchedRules.length === 0 && categoryLabel && categoryLabel !== 'Actions/Revue Manuelle') {
-      ruleReinforcement = `Considérer l'ajout d'une règle pour le label "${categoryLabel}"`;
-      suggestedNewLabel = categoryLabel;
+    if (matchedRules.length === 0 && !categoryLabel && aiAnalysis?.suggested_label) {
+      ruleReinforcement = `Considérer l'ajout d'une règle pour le label "${aiAnalysis.suggested_label}"`;
+      suggestedNewLabel = aiAnalysis.suggested_label;
     }
 
     // Save to email history with upsert to avoid duplicates
