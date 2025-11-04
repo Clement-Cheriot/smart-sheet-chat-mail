@@ -8,7 +8,8 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import { toast } from '@/hooks/use-toast';
 import { formatDistanceToNow } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { Mail, Tag, Clock, ChevronDown, Check, X, Lightbulb, Brain, Calendar, MessageSquare, Trash, RefreshCw } from 'lucide-react';
+import { Mail, Tag, Clock, ChevronDown, Check, X, Lightbulb, Brain, Calendar, MessageSquare, Trash, RefreshCw, MoreVertical } from 'lucide-react';
+import { EmailActionsDialog } from './EmailActionsDialog';
 
 interface EmailRecord {
   id: string;
@@ -34,6 +35,8 @@ export const EmailHistory = () => {
   const [emails, setEmails] = useState<EmailRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
+  const [selectedEmail, setSelectedEmail] = useState<EmailRecord | null>(null);
+  const [actionsDialogOpen, setActionsDialogOpen] = useState(false);
   const { user } = useAuth();
 
   useEffect(() => {
@@ -231,9 +234,21 @@ export const EmailHistory = () => {
             <CardHeader className="pb-3">
               <div className="flex items-start justify-between gap-4">
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1">
-                    <Mail className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                    <p className="font-medium truncate">Expéditeur : {getDisplaySender(email.sender)}</p>
+                  <div className="flex items-center justify-between mb-1">
+                    <div className="flex items-center gap-2">
+                      <Mail className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                      <p className="font-medium truncate">Expéditeur : {getDisplaySender(email.sender)}</p>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setSelectedEmail(email);
+                        setActionsDialogOpen(true);
+                      }}
+                    >
+                      <MoreVertical className="h-4 w-4" />
+                    </Button>
                   </div>
                   <CardTitle className="text-sm font-medium mb-1">
                     {email.subject || 'Sans objet'}
@@ -404,6 +419,15 @@ export const EmailHistory = () => {
           </Collapsible>
         </Card>
       ))}
+
+      {selectedEmail && (
+        <EmailActionsDialog
+          email={selectedEmail}
+          open={actionsDialogOpen}
+          onOpenChange={setActionsDialogOpen}
+          onUpdate={loadEmails}
+        />
+      )}
     </div>
   );
 };
