@@ -1,14 +1,16 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { toast } from '@/hooks/use-toast';
-import { Tag, Star, Mail, Send, Trash } from 'lucide-react';
+import { Tag, Star, Mail, Send, Trash, Check, ChevronsUpDown } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 interface EmailActionsDialogProps {
   email: any;
@@ -25,8 +27,42 @@ export const EmailActionsDialog = ({ email, open, onOpenChange, onUpdate }: Emai
   const [labelExplanation, setLabelExplanation] = useState('');
   const [newPriority, setNewPriority] = useState(email.priority_score?.toString() || '5');
   const [processing, setProcessing] = useState(false);
+  const [existingLabels, setExistingLabels] = useState<string[]>([]);
+  const [openCombobox, setOpenCombobox] = useState(false);
 
   const currentLabels = email.applied_label || [];
+
+  useEffect(() => {
+    const fetchExistingLabels = async () => {
+      if (!user?.id) return;
+      
+      // Récupérer les labels depuis email_rules
+      const { data: rulesData } = await supabase
+        .from('email_rules')
+        .select('label_to_apply')
+        .eq('user_id', user.id)
+        .not('label_to_apply', 'is', null);
+
+      const labelsFromRules = rulesData?.map(r => r.label_to_apply).filter(Boolean) || [];
+
+      // Récupérer les labels depuis email_history
+      const { data: historyData } = await supabase
+        .from('email_history')
+        .select('applied_label')
+        .eq('user_id', user.id)
+        .not('applied_label', 'is', null);
+
+      const labelsFromHistory = historyData?.flatMap(h => h.applied_label || []) || [];
+
+      // Combiner et dédupliquer
+      const allLabels = [...new Set([...labelsFromRules, ...labelsFromHistory])];
+      setExistingLabels(allLabels);
+    };
+
+    if (open) {
+      fetchExistingLabels();
+    }
+  }, [user?.id, open]);
 
   const handleChangeLabel = async () => {
     if (!newLabel.trim()) {
@@ -34,8 +70,32 @@ export const EmailActionsDialog = ({ email, open, onOpenChange, onUpdate }: Emai
       return;
     }
 
+    if (!labelExplanation.trim()) {
+      toast({ title: 'Erreur', description: 'L\'explication est obligatoire', variant: 'destructive' });
+      return;
+    }
+
     setProcessing(true);
     try {
+      // Si c'est un nouveau label, créer une règle automatiquement
+      const isNewLabel = !existingLabels.includes(newLabel);
+      
+      if (isNewLabel) {
+        const { error: ruleError } = await supabase
+          .from('email_rules')
+          .insert({
+            user_id: user?.id,
+            label_to_apply: newLabel,
+            keywords: [],
+            is_active: true,
+            rule_order: 0
+          });
+
+        if (ruleError) {
+          console.error('Erreur lors de la création de la règle:', ruleError);
+          // On continue quand même avec le changement de label
+        }
+      }
       // Apply label in Gmail
       const { error: gmailError } = await supabase.functions.invoke('gmail-actions', {
         body: {
@@ -266,19 +326,62 @@ export const EmailActionsDialog = ({ email, open, onOpenChange, onUpdate }: Emai
               )}
               <div>
                 <Label>Nouveau label</Label>
-                <Input
-                  value={newLabel}
-                  onChange={(e) => setNewLabel(e.target.value)}
-                  placeholder="Ex: Urgent/Client, Formation, etc."
-                />
+                <Popover open={openCombobox} onOpenChange={setOpenCombobox}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      role="combobox"
+                      aria-expanded={openCombobox}
+                      className="w-full justify-between"
+                    >
+                      {newLabel || "Sélectionner ou créer un label..."}
+                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-full p-0">
+                    <Command>
+                      <CommandInput 
+                        placeholder="Rechercher ou créer un label..." 
+                        value={newLabel}
+                        onValueChange={setNewLabel}
+                      />
+                      <CommandList>
+                        <CommandEmpty>
+                          Appuyez sur Entrée pour créer "{newLabel}"
+                        </CommandEmpty>
+                        <CommandGroup>
+                          {existingLabels.map((label) => (
+                            <CommandItem
+                              key={label}
+                              value={label}
+                              onSelect={(currentValue) => {
+                                setNewLabel(currentValue);
+                                setOpenCombobox(false);
+                              }}
+                            >
+                              <Check
+                                className={cn(
+                                  "mr-2 h-4 w-4",
+                                  newLabel === label ? "opacity-100" : "opacity-0"
+                                )}
+                              />
+                              {label}
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
               </div>
               <div>
-                <Label>Explication (optionnel - pour renforcer l'IA)</Label>
+                <Label>Explication (obligatoire - pour renforcer l'IA) *</Label>
                 <Textarea
                   value={labelExplanation}
                   onChange={(e) => setLabelExplanation(e.target.value)}
                   placeholder="Pourquoi ce label est plus approprié ? Cela aidera l'IA à mieux apprendre."
                   rows={3}
+                  required
                 />
               </div>
               <Button onClick={handleChangeLabel} disabled={processing} className="w-full">
