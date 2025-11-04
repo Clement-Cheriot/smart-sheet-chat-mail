@@ -20,10 +20,13 @@ interface EmailActionsDialogProps {
 export const EmailActionsDialog = ({ email, open, onOpenChange, onUpdate }: EmailActionsDialogProps) => {
   const { user } = useAuth();
   const [action, setAction] = useState<string>('');
+  const [selectedOldLabel, setSelectedOldLabel] = useState<string>('');
   const [newLabel, setNewLabel] = useState('');
   const [labelExplanation, setLabelExplanation] = useState('');
   const [newPriority, setNewPriority] = useState(email.priority_score?.toString() || '5');
   const [processing, setProcessing] = useState(false);
+
+  const currentLabels = email.applied_label || [];
 
   const handleChangeLabel = async () => {
     if (!newLabel.trim()) {
@@ -33,11 +36,28 @@ export const EmailActionsDialog = ({ email, open, onOpenChange, onUpdate }: Emai
 
     setProcessing(true);
     try {
-      // Update label
+      // Apply label in Gmail
+      const { error: gmailError } = await supabase.functions.invoke('gmail-actions', {
+        body: {
+          action: 'apply_label',
+          userId: user?.id,
+          messageId: email.gmail_message_id,
+          label: newLabel,
+          oldLabel: selectedOldLabel || undefined
+        }
+      });
+
+      if (gmailError) throw gmailError;
+
+      // Update database - replace old label with new one if specified, otherwise add to array
+      const updatedLabels = selectedOldLabel 
+        ? currentLabels.filter((l: string) => l !== selectedOldLabel).concat(newLabel)
+        : currentLabels.concat(newLabel);
+
       const { error: updateError } = await supabase
         .from('email_history')
         .update({ 
-          applied_label: [newLabel],
+          applied_label: updatedLabels,
           ai_reasoning: labelExplanation 
             ? `${email.ai_reasoning}\n\n[Correction manuelle]: ${labelExplanation}`
             : email.ai_reasoning
@@ -53,7 +73,7 @@ export const EmailActionsDialog = ({ email, open, onOpenChange, onUpdate }: Emai
           action_type: 'label_correction',
           action_details: {
             email_id: email.id,
-            old_label: email.applied_label,
+            old_label: selectedOldLabel || null,
             new_label: newLabel,
             explanation: labelExplanation
           },
@@ -61,7 +81,7 @@ export const EmailActionsDialog = ({ email, open, onOpenChange, onUpdate }: Emai
         });
       }
 
-      toast({ title: 'Succès', description: 'Label modifié' });
+      toast({ title: 'Succès', description: 'Label modifié dans Gmail et l\'application' });
       onUpdate();
       onOpenChange(false);
     } catch (error: any) {
@@ -226,6 +246,24 @@ export const EmailActionsDialog = ({ email, open, onOpenChange, onUpdate }: Emai
 
           {action === 'label' && (
             <div className="space-y-3">
+              {currentLabels.length > 0 && (
+                <div>
+                  <Label>Label à remplacer (optionnel)</Label>
+                  <Select value={selectedOldLabel} onValueChange={setSelectedOldLabel}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Aucun - ajouter un nouveau label" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">Aucun - ajouter un nouveau label</SelectItem>
+                      {currentLabels.map((label: string) => (
+                        <SelectItem key={label} value={label}>
+                          {label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
               <div>
                 <Label>Nouveau label</Label>
                 <Input

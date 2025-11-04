@@ -7,10 +7,11 @@ const corsHeaders = {
 };
 
 interface GmailAction {
-  action: 'apply_label' | 'create_draft';
+  action: 'apply_label' | 'create_draft' | 'send_reply';
   userId: string;
   messageId: string;
   label?: string;
+  oldLabel?: string; // Label to remove when replacing
   emailContext?: {
     sender: string;
     subject: string;
@@ -52,7 +53,8 @@ serve(async (req) => {
       await applyGmailLabel(
         actionData.messageId,
         actionData.label!,
-        gmailCredentials
+        gmailCredentials,
+        actionData.oldLabel
       );
 
       await supabase.from('activity_logs').insert({
@@ -117,7 +119,7 @@ serve(async (req) => {
   }
 });
 
-async function applyGmailLabel(messageId: string, labelName: string, credentials: any) {
+async function applyGmailLabel(messageId: string, labelName: string, credentials: any, oldLabelName?: string) {
   let accessToken = credentials.access_token;
 
   // Helper to call Gmail API with automatic refresh on 401/403
@@ -174,17 +176,29 @@ async function applyGmailLabel(messageId: string, labelName: string, credentials
     labelId = created.id;
   }
 
-  // 2) Apply the label ID to the message
+  // 2) Remove old label if specified
+  let oldLabelId: string | undefined;
+  if (oldLabelName) {
+    const oldLabel = (labelsJson.labels || []).find((l: any) => l.name === oldLabelName);
+    oldLabelId = oldLabel?.id;
+  }
+
+  // 3) Apply the label ID to the message (and remove old one if needed)
+  const modifyBody: any = { addLabelIds: [labelId] };
+  if (oldLabelId) {
+    modifyBody.removeLabelIds = [oldLabelId];
+  }
+
   const modifyRes = await gmailFetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${messageId}/modify`, {
     method: 'POST',
-    body: JSON.stringify({ addLabelIds: [labelId] }),
+    body: JSON.stringify(modifyBody),
   });
   if (!modifyRes.ok) {
     const text = await modifyRes.text();
     throw new Error(`Gmail modify failed: ${modifyRes.status} ${text}`);
   }
 
-  console.log(`Applied label "${labelName}" (id: ${labelId}) to message ${messageId}`);
+  console.log(`Applied label "${labelName}" (id: ${labelId}) to message ${messageId}${oldLabelId ? `, removed old label "${oldLabelName}"` : ''}`);
   return { success: true };
 }
 
