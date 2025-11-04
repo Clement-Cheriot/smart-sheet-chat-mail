@@ -43,14 +43,14 @@ export const EmailActionsDialog = ({ email, open, onOpenChange, onUpdate }: Emai
           userId: user?.id,
           messageId: email.gmail_message_id,
           label: newLabel,
-          oldLabel: selectedOldLabel || undefined
+          oldLabel: (selectedOldLabel && selectedOldLabel !== 'none') ? selectedOldLabel : undefined
         }
       });
 
       if (gmailError) throw gmailError;
 
       // Update database - replace old label with new one if specified, otherwise add to array
-      const updatedLabels = selectedOldLabel 
+      const updatedLabels = (selectedOldLabel && selectedOldLabel !== 'none')
         ? currentLabels.filter((l: string) => l !== selectedOldLabel).concat(newLabel)
         : currentLabels.concat(newLabel);
 
@@ -254,7 +254,7 @@ export const EmailActionsDialog = ({ email, open, onOpenChange, onUpdate }: Emai
                       <SelectValue placeholder="Aucun - ajouter un nouveau label" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">Aucun - ajouter un nouveau label</SelectItem>
+                      <SelectItem value="none">Aucun - ajouter un nouveau label</SelectItem>
                       {currentLabels.map((label: string) => (
                         <SelectItem key={label} value={label}>
                           {label}
