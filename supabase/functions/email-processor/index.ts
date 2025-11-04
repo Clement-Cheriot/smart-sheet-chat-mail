@@ -71,6 +71,8 @@ serve(async (req) => {
     let appliedLabels: string[] = [];
     let appliedRuleId: any = null;
     let shouldNotifyUrgent = false;
+    let categoryLabel = aiAnalysis.category_label || null;
+    let actionLabel = aiAnalysis.action_label || null;
     
     if (matchedRules.length > 0) {
       // Sort by rule_order and take the first matching rule for primary action
@@ -79,10 +81,10 @@ serve(async (req) => {
       
       appliedRuleId = primaryRule;
       
-      // Only apply label from primary rule (highest priority)
+      // Use rule's label as category label (overrides AI suggestion)
       if (primaryRule.label_to_apply) {
-        appliedLabels = [primaryRule.label_to_apply];
-        console.log(`Applying label "${primaryRule.label_to_apply}" from primary rule (priority ${primaryRule.rule_order})`);
+        categoryLabel = primaryRule.label_to_apply;
+        console.log(`Using label "${primaryRule.label_to_apply}" from matched rule (priority ${primaryRule.rule_order})`);
       }
       
       // Check if any rule has notify_urgent
@@ -149,41 +151,35 @@ serve(async (req) => {
       shouldAutoReply 
     });
 
-    // Determine actions taken
-    const actionsTaken = [];
+    // Build final labels: category + action
+    appliedLabels = [];
     
-    if (appliedLabels.length > 0) {
-      actionsTaken.push({ type: 'label', value: appliedLabels });
+    // Add category label (from rule or AI)
+    if (categoryLabel) {
+      appliedLabels.push(categoryLabel);
     }
-    if (appliedLabels.length === 0 && !shouldCreateDraft) {
-      actionsTaken.push({ type: 'manual_review', value: 'Needs Manual Review' });
-      appliedLabels.push('Needs Manual Review');
+    
+    // Add action label (always from AI)
+    if (actionLabel) {
+      appliedLabels.push(actionLabel);
+    }
+    
+    // Fallback if no labels at all
+    if (appliedLabels.length === 0) {
+      appliedLabels.push('Actions/Revue Manuelle');
+      actionLabel = 'Actions/Revue Manuelle';
     }
 
-    // Use AI category and action labels
-    const aiLabels: string[] = [];
-    let finalLabel = null;
+    // Determine actions taken
+    const actionsTaken = [{ type: 'label', value: appliedLabels }];
+    
+    // Suggest new rule if no rule matched and AI provided a category
     let ruleReinforcement = null;
+    let suggestedNewLabel = null;
     
-    // Add category label
-    if (aiAnalysis.category_label) {
-      aiLabels.push(aiAnalysis.category_label);
-      finalLabel = aiAnalysis.category_label;
-      
-      // Check if we should suggest a new rule for this category
-      if (!aiAnalysis.matched_label && matchedRules.length === 0) {
-        ruleReinforcement = `Considérer l'ajout d'une règle pour le label "${aiAnalysis.category_label}"`;
-      }
-    }
-    
-    // Add action label
-    if (aiAnalysis.action_label) {
-      aiLabels.push(aiAnalysis.action_label);
-    }
-    
-    // If no rule matched, use AI labels
-    if (appliedLabels.length === 0 && aiLabels.length > 0) {
-      appliedLabels = aiLabels;
+    if (matchedRules.length === 0 && categoryLabel && categoryLabel !== 'Actions/Revue Manuelle') {
+      ruleReinforcement = `Considérer l'ajout d'une règle pour le label "${categoryLabel}"`;
+      suggestedNewLabel = categoryLabel;
     }
 
     // Save to email history with upsert to avoid duplicates
@@ -201,20 +197,22 @@ serve(async (req) => {
         draft_created: false,
         body_summary: aiAnalysis.body_summary || emailData.body?.substring(0, 200),
         ai_reasoning: aiAnalysis.reasoning,
-        suggested_new_label: finalLabel,
+        suggested_new_label: suggestedNewLabel,
         rule_reinforcement_suggestion: ruleReinforcement,
         actions_taken: actionsTaken,
+        whatsapp_notified: false,
       }, { onConflict: 'user_id,gmail_message_id' })
       .select()
       .single();
 
     if (historyError) throw historyError;
 
-    // Apply Gmail labels if rules matched
+    // Apply Gmail labels (excluding action labels that start with "Actions/")
     if (appliedLabels.length > 0) {
       for (const label of appliedLabels) {
-        if (label !== 'Needs Manual Review') {
-          console.log('Applying label:', label);
+        // Only apply category labels to Gmail, not action labels
+        if (!label.startsWith('Actions/')) {
+          console.log('Applying Gmail label:', label);
           await supabase.functions.invoke('gmail-actions', {
             body: {
               action: 'apply_label',
@@ -370,25 +368,40 @@ De: ${sender}
 Sujet: ${subject}
 Corps: ${body.substring(0, 1000)}${labelsContext}
 
-IMPORTANT - Tu DOIS attribuer 2 LABELS pour CHAQUE email:
+INSTRUCTIONS CRITIQUES:
 
-1. LABEL DE CATÉGORIE (obligatoire):
-   - D'ABORD, vérifie si l'email correspond à un des LABELS EXISTANTS ci-dessus
-   - Si OUI, utilise CE label exact (même orthographe)
-   - Si NON, suggère un nouveau label THÉMATIQUE selon ces catégories standards:
-     * Secu/Phishing - Pour les emails suspects, tentatives de phishing, adresses non officielles
-     * Secu/Spam - Pour le spam, publicités non sollicitées
-     * Secu/Alerte - Pour les alertes de sécurité légitimes
-     * Newsletter - Pour les newsletters
-     * Admin/* - Pour les emails administratifs
+1. DÉTECTION PHISHING/SPAM (prioritaire):
+   - Vérifie TOUJOURS l'adresse de l'expéditeur
+   - Si l'adresse semble suspecte (domaine inhabituel, caractères aléatoires), c'est probablement du phishing ou spam
+   - Exemple: maynie.shirishyz@mails.growthinsighte.site = PHISHING (domaine non officiel)
+   - Si phishing détecté: category_label = "Secu/Phishing", action_label = "Actions/A supprimer"
+   - Si spam détecté: category_label = "Secu/Spam", action_label = "Actions/A supprimer"
+
+2. LABEL DE CATÉGORIE (category_label - obligatoire):
+   - D'ABORD, vérifie si c'est du phishing/spam (voir point 1)
+   - ENSUITE, vérifie si l'email correspond à un des LABELS EXISTANTS ci-dessus
+   - Si OUI, utilise CE label exact (même orthographe) et mets matched_label = ce label
+   - Si NON, suggère un nouveau label THÉMATIQUE:
+     * Secu/Phishing - Emails suspects, tentatives de phishing, adresses non officielles
+     * Secu/Spam - Spam, publicités non sollicitées
+     * Secu/Alerte - Alertes de sécurité légitimes
+     * Newsletter - Newsletters d'entreprises reconnues
+     * Admin/* - Emails administratifs
+     * Commande/* - Confirmations de commande
      * etc.
 
-2. LABEL D'ACTION (obligatoire - toujours préfixer par "Actions/"):
-   - Actions/A répondre - Email nécessitant une réponse de l'utilisateur
+3. LABEL D'ACTION (action_label - obligatoire, toujours préfixer par "Actions/"):
+   - Actions/A répondre - Email légitime nécessitant une réponse
    - Actions/Automatique - Réponse automatique déjà envoyée ou prévue
-   - Actions/A supprimer - Email à supprimer (spam, phishing)
-   - Actions/Revue Manuelle - Email nécessitant une vérification manuelle par l'utilisateur
-   - Actions/Rien à faire - Email informatif, aucune action requise
+   - Actions/A supprimer - Email à supprimer (spam, phishing, indésirable)
+   - Actions/Revue Manuelle - Email nécessitant vérification manuelle
+   - Actions/Rien à faire - Email informatif légitime, aucune action requise
+
+4. RAISONNEMENT (reasoning - obligatoire):
+   - Explique EN FRANÇAIS pourquoi tu as choisi CES DEUX LABELS
+   - Si c'est du phishing/spam, MENTIONNE-LE explicitement
+   - Si tu as utilisé un label existant, dis lequel
+   - Si tu proposes un nouveau label, explique pourquoi
 
 Fournis une réponse JSON avec:
 1. urgency: échelle de 1 à 10
