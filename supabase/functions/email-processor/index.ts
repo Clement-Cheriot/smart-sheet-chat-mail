@@ -160,17 +160,30 @@ serve(async (req) => {
       appliedLabels.push('Needs Manual Review');
     }
 
-    // Use AI matched label or suggest new one
+    // Use AI category and action labels
+    const aiLabels: string[] = [];
     let finalLabel = null;
     let ruleReinforcement = null;
     
-    if (aiAnalysis.matched_label) {
-      // AI found a match with existing label
-      finalLabel = aiAnalysis.matched_label;
-    } else if (aiAnalysis.suggested_label && matchedRules.length === 0) {
-      // AI suggests a new label
-      finalLabel = aiAnalysis.suggested_label;
-      ruleReinforcement = `Considérer l'ajout d'une règle pour le label "${finalLabel}"`;
+    // Add category label
+    if (aiAnalysis.category_label) {
+      aiLabels.push(aiAnalysis.category_label);
+      finalLabel = aiAnalysis.category_label;
+      
+      // Check if we should suggest a new rule for this category
+      if (!aiAnalysis.matched_label && matchedRules.length === 0) {
+        ruleReinforcement = `Considérer l'ajout d'une règle pour le label "${aiAnalysis.category_label}"`;
+      }
+    }
+    
+    // Add action label
+    if (aiAnalysis.action_label) {
+      aiLabels.push(aiAnalysis.action_label);
+    }
+    
+    // If no rule matched, use AI labels
+    if (appliedLabels.length === 0 && aiLabels.length > 0) {
+      appliedLabels = aiLabels;
     }
 
     // Save to email history with upsert to avoid duplicates
@@ -357,26 +370,44 @@ De: ${sender}
 Sujet: ${subject}
 Corps: ${body.substring(0, 1000)}${labelsContext}
 
-IMPORTANT - Processus de décision pour le label:
-1. D'ABORD, vérifie si l'email correspond à un des LABELS EXISTANTS ci-dessus
-2. Si OUI, utilise CE label exact (même orthographe)
-3. Si NON, suggère un nouveau label THÉMATIQUE/CATÉGORIEL générique
-4. NE JAMAIS suggérer des noms de personnes/entreprises/produits spécifiques
+IMPORTANT - Tu DOIS attribuer 2 LABELS pour CHAQUE email:
+
+1. LABEL DE CATÉGORIE (obligatoire):
+   - D'ABORD, vérifie si l'email correspond à un des LABELS EXISTANTS ci-dessus
+   - Si OUI, utilise CE label exact (même orthographe)
+   - Si NON, suggère un nouveau label THÉMATIQUE selon ces catégories standards:
+     * Secu/Phishing - Pour les emails suspects, tentatives de phishing, adresses non officielles
+     * Secu/Spam - Pour le spam, publicités non sollicitées
+     * Secu/Alerte - Pour les alertes de sécurité légitimes
+     * Newsletter - Pour les newsletters
+     * Admin/* - Pour les emails administratifs
+     * etc.
+
+2. LABEL D'ACTION (obligatoire - toujours préfixer par "Actions/"):
+   - Actions/A répondre - Email nécessitant une réponse de l'utilisateur
+   - Actions/Automatique - Réponse automatique déjà envoyée ou prévue
+   - Actions/A supprimer - Email à supprimer (spam, phishing)
+   - Actions/Revue Manuelle - Email nécessitant une vérification manuelle par l'utilisateur
+   - Actions/Rien à faire - Email informatif, aucune action requise
 
 Fournis une réponse JSON avec:
 1. urgency: échelle de 1 à 10
 2. key_entities: tableau des noms importants, dates, montants
 3. suggested_action: reply/forward/archive/review/urgent_response
-4. body_summary: Résumé bref en 2-3 phrases EN FRANÇAIS
-5. reasoning: Explique UNIQUEMENT pourquoi tu as choisi ce label (check des règles existantes) EN FRANÇAIS
-6. matched_label: Si l'email correspond à un label existant, mets-le ici (sinon null)
-7. suggested_label: Si matched_label est null ET aucune catégorie standard ne convient, suggère un nouveau label thématique
-8. needs_calendar_action: boolean
-9. calendar_details: Si needs_calendar_action=true, {title, date (ISO), duration_minutes, location?, attendees?}
-10. is_urgent_whatsapp: boolean
-11. needs_response: boolean
-12. response_type: "none" | "draft" | "auto_reply"
-13. response_reasoning: string EN FRANÇAIS`;
+4. body_summary: Résumé bref en 2-3 phrases EN FRANÇAIS (mentionne si c'est du phishing/spam)
+5. reasoning: Explique pourquoi tu as choisi ces 2 labels EN FRANÇAIS
+6. category_label: Le label de catégorie choisi (OBLIGATOIRE)
+7. action_label: Le label d'action choisi avec préfixe "Actions/" (OBLIGATOIRE)
+8. is_phishing: boolean - true si c'est du phishing détecté
+9. is_spam: boolean - true si c'est du spam
+10. matched_label: Si un label existant correspond, mets-le ici (sinon null)
+11. suggested_label: Si matched_label est null, suggère un nouveau label thématique
+12. needs_calendar_action: boolean
+13. calendar_details: Si needs_calendar_action=true, {title, date (ISO), duration_minutes, location?, attendees?}
+14. is_urgent_whatsapp: boolean
+15. needs_response: boolean
+16. response_type: "none" | "draft" | "auto_reply"
+17. response_reasoning: string EN FRANÇAIS`;
 
     const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
@@ -426,6 +457,10 @@ Fournis une réponse JSON avec:
       suggested_action: 'review',
       body_summary: body.substring(0, 200),
       reasoning: 'AI analysis unavailable, using defaults',
+      category_label: 'Needs Manual Review',
+      action_label: 'Actions/Revue Manuelle',
+      is_phishing: false,
+      is_spam: false,
       matched_label: null,
       suggested_label: null,
       needs_calendar_action: false,
