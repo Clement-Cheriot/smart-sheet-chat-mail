@@ -139,11 +139,14 @@ export const EmailSummary = () => {
 
   const sendManualSummary = async () => {
     if (!manualStartDate || !manualEndDate) {
-      toast({ title: 'Erreur', description: 'Veuillez insérer les dates de début et de fin', variant: 'destructive' });
+      toast({ title: 'Erreur', description: 'Veuillez sélectionner les dates de début et de fin', variant: 'destructive' });
       return;
     }
 
-    if (new Date(manualStartDate) > new Date(manualEndDate)) {
+    const startDate = new Date(manualStartDate);
+    const endDate = new Date(manualEndDate);
+
+    if (startDate > endDate) {
       toast({ title: 'Erreur', description: 'La date de début doit être antérieure à la date de fin', variant: 'destructive' });
       return;
     }
@@ -154,8 +157,8 @@ export const EmailSummary = () => {
         body: {
           userId: user?.id,
           period: 'custom',
-          startDate: new Date(manualStartDate).toISOString(),
-          endDate: new Date(manualEndDate).toISOString(),
+          startDate: startDate.toISOString(),
+          endDate: endDate.toISOString(),
         },
       });
 
@@ -163,8 +166,8 @@ export const EmailSummary = () => {
 
       await supabase.from('email_summaries').insert({
         user_id: user?.id,
-        period_start: new Date(manualStartDate).toISOString(),
-        period_end: new Date(manualEndDate).toISOString(),
+        period_start: startDate.toISOString(),
+        period_end: endDate.toISOString(),
         summary_content: data.summary,
       });
 
@@ -250,34 +253,35 @@ export const EmailSummary = () => {
 
     setGeneratingAudio(true);
     try {
-      // Use Web Speech API (native browser TTS - no API key needed)
-      if (!('speechSynthesis' in window)) {
-        throw new Error('Votre navigateur ne supporte pas la synthèse vocale');
-      }
+      const { data, error } = await supabase.functions.invoke('text-to-speech', {
+        body: {
+          summaryText: latestSummary.content,
+        },
+      });
 
-      const utterance = new SpeechSynthesisUtterance(latestSummary.content);
-      utterance.lang = 'fr-FR';
-      utterance.rate = 1.0;
-      utterance.pitch = 1.0;
-      
-      // Find a French voice if available
-      const voices = window.speechSynthesis.getVoices();
-      const frenchVoice = voices.find(v => v.lang.startsWith('fr'));
-      if (frenchVoice) {
-        utterance.voice = frenchVoice;
-      }
+      if (error) throw error;
 
-      window.speechSynthesis.speak(utterance);
+      // Play the audio
+      const audioBlob = new Blob(
+        [Uint8Array.from(atob(data.audioBase64), c => c.charCodeAt(0))],
+        { type: 'audio/mpeg' }
+      );
+      const audioUrl = URL.createObjectURL(audioBlob);
+      const audio = new Audio(audioUrl);
       
-      utterance.onend = () => {
+      audio.onended = () => {
+        URL.revokeObjectURL(audioUrl);
         setGeneratingAudio(false);
         toast({ title: 'Succès', description: 'Lecture audio terminée' });
       };
       
-      utterance.onerror = (e) => {
+      audio.onerror = () => {
+        URL.revokeObjectURL(audioUrl);
         setGeneratingAudio(false);
         toast({ title: 'Erreur', description: 'Erreur lors de la lecture audio', variant: 'destructive' });
       };
+
+      await audio.play();
     } catch (error: any) {
       console.error('Error generating audio:', error);
       toast({ title: 'Erreur', description: error.message || 'Échec de la génération audio', variant: 'destructive' });
