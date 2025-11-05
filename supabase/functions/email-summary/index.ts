@@ -78,7 +78,7 @@ serve(async (req) => {
       (e.ai_analysis?.response_type === 'auto') ||
       (Array.isArray(e.actions_taken) && e.actions_taken.some((a: any) => a.type === 'auto_reply'))
     ).length;
-    const notificationsSent = (emails || []).filter((e: any) => e.whatsapp_notified).length;
+    const notificationsSent = (emails || []).filter((e: any) => e.telegram_notified).length;
     const calendarActions = (emails || []).filter((e: any) => e.ai_analysis?.needs_calendar_action).length;
 
     // Count by categories (excluding Actions/ labels)
@@ -154,11 +154,10 @@ serve(async (req) => {
 
     const summaryMessage = lines.join('\n');
 
-    // Send via WhatsApp
-    await supabase.functions.invoke('whatsapp-sender', {
+    // Send via Telegram
+    await supabase.functions.invoke('telegram-sender', {
       body: {
         userId,
-        type: 'summary',
         message: summaryMessage,
       }
     });

@@ -16,13 +16,9 @@ export const EmailSummary = () => {
   const [manualStartDate, setManualStartDate] = useState('');
   const [manualEndDate, setManualEndDate] = useState('');
   const [loading, setLoading] = useState(false);
-  const [sendingWhatsApp, setSendingWhatsApp] = useState(false);
+  const [sendingTelegram, setSendingTelegram] = useState(false);
   const [generatingAudio, setGeneratingAudio] = useState(false);
   const [latestSummary, setLatestSummary] = useState<{ content: string; start: string; end: string } | null>(null);
-  
-  // Refs for robust value reading (avoids rare controlled input sync issues)
-  const startRef = useRef<HTMLInputElement>(null);
-  const endRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (user) {
@@ -162,16 +158,13 @@ export const EmailSummary = () => {
   };
 
   const sendManualSummary = async () => {
-    const startRaw = (startRef.current?.value ?? manualStartDate ?? '').trim();
-    const endRaw = (endRef.current?.value ?? manualEndDate ?? '').trim();
-
-    if (!startRaw || !endRaw) {
-      toast({ title: 'Erreur', description: 'Veuillez insérer les dates de début et de fin', variant: 'destructive' });
+    if (!manualStartDate || !manualEndDate) {
+      toast({ title: 'Erreur', description: 'Veuillez sélectionner les dates de début et de fin', variant: 'destructive' });
       return;
     }
 
-    const startDate = new Date(startRaw);
-    const endDate = new Date(endRaw);
+    const startDate = new Date(manualStartDate);
+    const endDate = new Date(manualEndDate);
 
     if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
       toast({ title: 'Erreur', description: 'Format de date invalide', variant: 'destructive' });
@@ -249,31 +242,29 @@ export const EmailSummary = () => {
     }
   };
 
-  const sendSummaryToWhatsApp = async () => {
+  const sendSummaryToTelegram = async () => {
     if (!latestSummary?.content) {
       toast({ title: 'Erreur', description: 'Aucun résumé disponible', variant: 'destructive' });
       return;
     }
 
-    setSendingWhatsApp(true);
+    setSendingTelegram(true);
     try {
-      const { data, error } = await supabase.functions.invoke('whatsapp-sender', {
+      const { data, error } = await supabase.functions.invoke('telegram-sender', {
         body: {
           userId: user?.id,
-          type: 'summary',
-          message: `📊 Résumé emails\n\n${latestSummary.content}`,
-          useTemplate: false,
+          message: `📊 *Résumé emails*\n\n${latestSummary.content}`,
         },
       });
 
       if (error) throw error;
 
-      toast({ title: 'Succès', description: 'Résumé envoyé sur WhatsApp' });
+      toast({ title: 'Succès', description: 'Résumé envoyé sur Telegram' });
     } catch (error: any) {
-      console.error('Error sending to WhatsApp:', error);
-      toast({ title: 'Erreur', description: error.message || 'Échec de l\'envoi WhatsApp', variant: 'destructive' });
+      console.error('Error sending to Telegram:', error);
+      toast({ title: 'Erreur', description: error.message || 'Échec de l\'envoi Telegram', variant: 'destructive' });
     } finally {
-      setSendingWhatsApp(false);
+      setSendingTelegram(false);
     }
   };
 
@@ -339,9 +330,9 @@ export const EmailSummary = () => {
                   </svg>
                   {generatingAudio ? 'Génération...' : 'Audio'}
                 </Button>
-                <Button onClick={sendSummaryToWhatsApp} disabled={sendingWhatsApp} variant="outline" size="sm">
+                <Button onClick={sendSummaryToTelegram} disabled={sendingTelegram} variant="outline" size="sm">
                   <Send className="h-4 w-4 mr-2" />
-                  {sendingWhatsApp ? 'Envoi...' : 'WhatsApp'}
+                  {sendingTelegram ? 'Envoi...' : 'Telegram'}
                 </Button>
               </div>
             </CardTitle>
@@ -364,7 +355,7 @@ export const EmailSummary = () => {
             Résumés automatiques
           </CardTitle>
           <CardDescription>
-            Configurez les horaires auxquels vous souhaitez recevoir un résumé automatique sur WhatsApp
+            Configurez les horaires auxquels vous souhaitez recevoir un résumé automatique sur Telegram
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -427,7 +418,6 @@ export const EmailSummary = () => {
                 step={60}
                 value={manualStartDate}
                 onChange={(e) => setManualStartDate(e.target.value)}
-                ref={startRef}
               />
             </div>
             <div className="space-y-2">
@@ -438,7 +428,6 @@ export const EmailSummary = () => {
                 step={60}
                 value={manualEndDate}
                 onChange={(e) => setManualEndDate(e.target.value)}
-                ref={endRef}
               />
             </div>
           </div>

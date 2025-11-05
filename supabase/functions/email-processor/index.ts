@@ -241,7 +241,7 @@ serve(async (req) => {
         suggested_new_label: suggestedNewLabel,
         rule_reinforcement_suggestion: ruleReinforcement,
         actions_taken: actionsTaken,
-        whatsapp_notified: false,
+        telegram_notified: false,
       }, { onConflict: 'user_id,gmail_message_id' })
       .select()
       .single();
@@ -314,18 +314,18 @@ serve(async (req) => {
         .eq('id', historyRecord.id);
     }
 
-    // Get user's WhatsApp threshold (default to 8)
+    // Get user's Telegram threshold (default to 8)
     const { data: userConfig } = await supabase
       .from('user_api_configs')
-      .select('whatsapp_threshold')
+      .select('telegram_threshold')
       .eq('user_id', emailData.userId)
       .maybeSingle();
     
-    const threshold = userConfig?.whatsapp_threshold || 8;
+    const threshold = userConfig?.telegram_threshold || 8;
     
-    // Send WhatsApp notification if priority exceeds threshold or urgent rule matches
+    // Send Telegram notification if priority exceeds threshold or urgent rule matches
     if (priorityScore >= threshold || shouldNotifyUrgent || aiAnalysis.is_urgent_whatsapp) {
-      console.log('Sending WhatsApp notification');
+      console.log('Sending Telegram notification');
       
       // Build suggested action message
       let actionText = 'Consulter le mail';
@@ -337,20 +337,19 @@ serve(async (req) => {
         actionText = 'Ajouter l\'événement au calendrier';
       }
       
-      await supabase.functions.invoke('whatsapp-sender', {
+      await supabase.functions.invoke('telegram-sender', {
         body: {
           userId: emailData.userId,
-          type: 'alert',
-          message: `🚨 Email ${shouldNotifyUrgent ? 'urgent' : 'prioritaire'} détecté!\n\nDe: ${emailData.sender}\nSujet: ${emailData.subject}\nPriorité: ${priorityScore}/10\n${appliedLabels.length > 0 ? `Labels: ${appliedLabels.join(', ')}\n` : ''}\n📋 Résumé: ${aiAnalysis.body_summary}\n\n💡 Action suggérée: ${actionText}`,
+          message: `🚨 *Email ${shouldNotifyUrgent ? 'urgent' : 'prioritaire'} détecté!*\n\n*De:* ${emailData.sender}\n*Sujet:* ${emailData.subject}\n*Priorité:* ${priorityScore}/10\n${appliedLabels.length > 0 ? `*Labels:* ${appliedLabels.join(', ')}\n` : ''}\n📋 *Résumé:* ${aiAnalysis.body_summary}\n\n💡 *Action suggérée:* ${actionText}`,
         }
       });
 
-      // Mark as WhatsApp sent
+      // Mark as Telegram sent
       await supabase
         .from('email_history')
         .update({ 
-          whatsapp_notified: true,
-          actions_taken: [...actionsTaken, { type: 'whatsapp_urgent', value: true }]
+          telegram_notified: true,
+          actions_taken: [...actionsTaken, { type: 'telegram_urgent', value: true }]
         })
         .eq('id', historyRecord.id);
     }

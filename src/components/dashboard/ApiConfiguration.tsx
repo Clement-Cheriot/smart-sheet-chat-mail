@@ -9,11 +9,10 @@ import { Save, Eye, EyeOff } from 'lucide-react';
 
 export const ApiConfiguration = () => {
   const [config, setConfig] = useState({
-    whatsapp_api_token: '',
-    whatsapp_phone_number_id: '',
-    whatsapp_recipient_number: '',
+    telegram_bot_token: '',
+    telegram_chat_id: '',
     google_sheets_id: '',
-    whatsapp_threshold: 8,
+    telegram_threshold: 8,
   });
   const [showTokens, setShowTokens] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -33,7 +32,7 @@ export const ApiConfiguration = () => {
     try {
       const { data, error } = await supabase
         .from('user_api_configs')
-        .select('whatsapp_api_token, whatsapp_phone_number_id, whatsapp_recipient_number, google_sheets_id, whatsapp_threshold')
+        .select('telegram_bot_token, telegram_chat_id, google_sheets_id, telegram_threshold')
         .eq('user_id', user?.id)
         .maybeSingle();
 
@@ -41,11 +40,10 @@ export const ApiConfiguration = () => {
       
       if (data) {
         setConfig({
-          whatsapp_api_token: data.whatsapp_api_token || '',
-          whatsapp_phone_number_id: data.whatsapp_phone_number_id || '',
-          whatsapp_recipient_number: data.whatsapp_recipient_number || '',
+          telegram_bot_token: data.telegram_bot_token || '',
+          telegram_chat_id: data.telegram_chat_id || '',
           google_sheets_id: data.google_sheets_id || '',
-          whatsapp_threshold: data.whatsapp_threshold || 8,
+          telegram_threshold: data.telegram_threshold || 8,
         });
       }
     } catch (error) {
@@ -55,41 +53,31 @@ export const ApiConfiguration = () => {
     }
   };
 
-  const testWhatsApp = async (sendTest: boolean = false) => {
+  const testTelegram = async () => {
     setTesting(true);
     setTestResult(null);
     try {
-      const { data, error } = await supabase.functions.invoke('whatsapp-healthcheck', {
+      const { data, error } = await supabase.functions.invoke('telegram-sender', {
         body: {
           userId: user?.id,
-          sendTest,
+          message: '🤖 Test de configuration Telegram réussi !',
         },
       });
 
       if (error) throw error;
 
-      setTestResult(data);
-      
-      if (data.valid) {
-        toast({
-          title: '✅ WhatsApp valide',
-          description: sendTest 
-            ? 'Configuration valide et message test envoyé !' 
-            : 'Configuration validée avec succès',
-        });
-      } else {
-        toast({
-          title: '❌ Erreur WhatsApp',
-          description: data.error || 'Configuration invalide',
-          variant: 'destructive',
-        });
-      }
+      toast({
+        title: '✅ Telegram OK',
+        description: 'Message test envoyé avec succès',
+      });
+      setTestResult({ valid: true });
     } catch (error: any) {
       toast({
-        title: 'Erreur',
-        description: error.message,
+        title: '❌ Erreur Telegram',
+        description: error.message || 'Configuration invalide',
         variant: 'destructive',
       });
+      setTestResult({ valid: false, error: error.message });
     } finally {
       setTesting(false);
     }
@@ -100,12 +88,13 @@ export const ApiConfiguration = () => {
     try {
       const { error } = await supabase
         .from('user_api_configs')
-        .upsert({
-          user_id: user?.id,
-          ...config,
-        }, {
-          onConflict: 'user_id'
-        });
+        .upsert(
+          {
+            user_id: user?.id,
+            ...config,
+          },
+          { onConflict: 'user_id' }
+        );
 
       if (error) throw error;
 
@@ -132,14 +121,14 @@ export const ApiConfiguration = () => {
     <div className="space-y-6">
       <div className="space-y-4">
         <div>
-          <Label htmlFor="whatsapp-token">WhatsApp API Token</Label>
+          <Label htmlFor="telegram-token">Telegram Bot Token</Label>
           <div className="flex gap-2 mt-2">
             <Input
-              id="whatsapp-token"
+              id="telegram-token"
               type={showTokens ? 'text' : 'password'}
-              value={config.whatsapp_api_token}
-              onChange={(e) => setConfig({ ...config, whatsapp_api_token: e.target.value })}
-              placeholder="Votre token WhatsApp Business API"
+              value={config.telegram_bot_token}
+              onChange={(e) => setConfig({ ...config, telegram_bot_token: e.target.value })}
+              placeholder="Votre token de bot Telegram (de @BotFather)"
             />
             <Button
               variant="outline"
@@ -149,46 +138,38 @@ export const ApiConfiguration = () => {
               {showTokens ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
             </Button>
           </div>
-        </div>
-
-        <div>
-          <Label htmlFor="whatsapp-phone">WhatsApp Phone Number ID</Label>
-          <Input
-            id="whatsapp-phone"
-            value={config.whatsapp_phone_number_id}
-            onChange={(e) => setConfig({ ...config, whatsapp_phone_number_id: e.target.value })}
-            placeholder="ID du numéro de téléphone"
-            className="mt-2"
-          />
-        </div>
-
-        <div>
-          <Label htmlFor="whatsapp-recipient">Numéro WhatsApp destinataire</Label>
-          <Input
-            id="whatsapp-recipient"
-            value={config.whatsapp_recipient_number}
-            onChange={(e) => setConfig({ ...config, whatsapp_recipient_number: e.target.value })}
-            placeholder="+33612345678"
-            className="mt-2"
-          />
           <p className="text-xs text-muted-foreground mt-1">
-            Format international avec le +, ex: +33612345678
+            Créez un bot avec @BotFather sur Telegram pour obtenir le token
           </p>
         </div>
 
         <div>
-          <Label htmlFor="whatsapp-threshold">Seuil d'urgence WhatsApp (1-10)</Label>
+          <Label htmlFor="telegram-chat">Telegram Chat ID</Label>
           <Input
-            id="whatsapp-threshold"
-            type="number"
-            min="1"
-            max="10"
-            value={config.whatsapp_threshold}
-            onChange={(e) => setConfig({ ...config, whatsapp_threshold: parseInt(e.target.value) || 8 })}
+            id="telegram-chat"
+            value={config.telegram_chat_id}
+            onChange={(e) => setConfig({ ...config, telegram_chat_id: e.target.value })}
+            placeholder="Votre Chat ID (obtenez-le avec @userinfobot)"
             className="mt-2"
           />
           <p className="text-xs text-muted-foreground mt-1">
-            Recevoir une alerte WhatsApp si la priorité de l'email est ≥ ce seuil (défaut: 8)
+            Utilisez @userinfobot sur Telegram pour obtenir votre Chat ID
+          </p>
+        </div>
+
+        <div>
+          <Label htmlFor="telegram-threshold">Seuil d'urgence Telegram (1-10)</Label>
+          <Input
+            id="telegram-threshold"
+            type="number"
+            min="1"
+            max="10"
+            value={config.telegram_threshold}
+            onChange={(e) => setConfig({ ...config, telegram_threshold: parseInt(e.target.value) || 8 })}
+            className="mt-2"
+          />
+          <p className="text-xs text-muted-foreground mt-1">
+            Recevoir une alerte Telegram si la priorité de l'email est ≥ ce seuil (défaut: 8)
           </p>
         </div>
 
@@ -213,35 +194,16 @@ export const ApiConfiguration = () => {
           {saving ? 'Sauvegarde...' : 'Sauvegarder la configuration'}
         </Button>
         
-        <div className="grid grid-cols-2 gap-2">
-          <Button onClick={() => testWhatsApp(false)} disabled={testing} variant="outline">
-            {testing ? 'Test...' : 'Vérifier WhatsApp'}
-          </Button>
-          <Button onClick={() => testWhatsApp(true)} disabled={testing} variant="outline">
-            {testing ? 'Envoi...' : 'Tester avec message'}
-          </Button>
-        </div>
+        <Button onClick={testTelegram} disabled={testing} variant="outline" className="w-full">
+          {testing ? 'Test...' : 'Tester Telegram (envoie un message)'}
+        </Button>
       </div>
 
       {testResult && (
         <div className={`p-4 rounded-lg ${testResult.valid ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'}`}>
           <p className={`text-sm font-medium ${testResult.valid ? 'text-green-900' : 'text-red-900'}`}>
-            {testResult.valid ? '✅ Configuration valide' : '❌ Configuration invalide'}
+            {testResult.valid ? '✅ Configuration valide - Message test envoyé' : '❌ Configuration invalide'}
           </p>
-          {testResult.details && (
-            <div className="mt-2 text-xs text-muted-foreground">
-              <p>Numéro: {testResult.details.display_phone_number}</p>
-              <p>Nom vérifié: {testResult.details.verified_name}</p>
-              <p>Qualité: {testResult.details.quality_rating}</p>
-            </div>
-          )}
-          {testResult.testResult && (
-            <p className="mt-2 text-xs">
-              {testResult.testResult.success 
-                ? `✅ Message test envoyé (ID: ${testResult.testResult.messageId})` 
-                : `❌ Échec envoi test: ${testResult.testResult.error}`}
-            </p>
-          )}
           {testResult.error && (
             <p className="mt-2 text-xs text-red-700">{testResult.error}</p>
           )}
@@ -249,11 +211,12 @@ export const ApiConfiguration = () => {
       )}
 
       <div className="bg-muted/50 p-4 rounded-lg space-y-2">
-        <p className="text-sm font-medium">Note importante :</p>
+        <p className="text-sm font-medium">Configuration Telegram :</p>
         <ul className="text-sm text-muted-foreground space-y-1 list-disc list-inside">
-          <li>Gmail OAuth sera configuré via les webhooks Gmail</li>
-          <li>Vos clés sont stockées de manière sécurisée et chiffrée</li>
-          <li>Vous recevrez des alertes WhatsApp uniquement si configuré</li>
+          <li>Créez un bot avec @BotFather et obtenez le token</li>
+          <li>Obtenez votre Chat ID avec @userinfobot</li>
+          <li>Démarrez votre bot en lui envoyant /start</li>
+          <li>Recevez des alertes et résumés directement sur Telegram</li>
         </ul>
       </div>
     </div>

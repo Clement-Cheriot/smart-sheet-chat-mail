@@ -40,7 +40,7 @@ const Index = () => {
               Gérez vos emails avec l'IA
             </h2>
             <p className="text-xl text-muted-foreground">
-              Automatisez le tri, la priorisation et les réponses de vos emails via WhatsApp
+              Automatisez le tri, la priorisation et les réponses de vos emails via Telegram
             </p>
           </div>
 
@@ -72,9 +72,9 @@ const Index = () => {
 
             <div className="p-6 bg-card border rounded-lg">
               <Shield className="h-8 w-8 text-success mb-4" />
-              <h3 className="font-semibold mb-2">WhatsApp intégré</h3>
+              <h3 className="font-semibold mb-2">Telegram intégré</h3>
               <p className="text-sm text-muted-foreground">
-                Recevez des alertes et résumés directement sur WhatsApp
+                Recevez des alertes et résumés directement sur Telegram
               </p>
             </div>
 

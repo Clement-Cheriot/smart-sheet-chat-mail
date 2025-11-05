@@ -27,7 +27,7 @@ interface EmailRecord {
   actions_taken: any[];
   label_validation_status: string;
   rule_reinforcement_status: string;
-  whatsapp_notified: boolean;
+  telegram_notified: boolean;
   ai_analysis: any;
 }
 
@@ -209,7 +209,7 @@ export const EmailHistory = () => {
       case 'draft_created': return <Mail className="h-3 w-3" />;
       case 'manual_review': return <Brain className="h-3 w-3" />;
       case 'calendar_needed': return <Calendar className="h-3 w-3" />;
-      case 'whatsapp_urgent': return <MessageSquare className="h-3 w-3" />;
+      case 'telegram_urgent': return <MessageSquare className="h-3 w-3" />;
       default: return null;
     }
   };
@@ -300,10 +300,10 @@ export const EmailHistory = () => {
                     </div>
                   )}
                   
-                  {email.whatsapp_notified && (
+                  {email.telegram_notified && (
                     <div className="flex items-center gap-2 text-xs">
                       <MessageSquare className="h-3 w-3 text-green-500" />
-                      <span className="font-medium">Notification urgente WhatsApp</span>
+                      <span className="font-medium">Notification urgente Telegram</span>
                     </div>
                   )}
                   

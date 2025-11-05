@@ -65,6 +65,7 @@ export type Database = {
           sender: string
           subject: string | null
           suggested_new_label: string | null
+          telegram_notified: boolean | null
           user_id: string
           whatsapp_notified: boolean | null
         }
@@ -88,6 +89,7 @@ export type Database = {
           sender: string
           subject?: string | null
           suggested_new_label?: string | null
+          telegram_notified?: boolean | null
           user_id: string
           whatsapp_notified?: boolean | null
         }
@@ -111,6 +113,7 @@ export type Database = {
           sender?: string
           subject?: string | null
           suggested_new_label?: string | null
+          telegram_notified?: boolean | null
           user_id?: string
           whatsapp_notified?: boolean | null
         }
@@ -287,6 +290,9 @@ export type Database = {
           gmail_credentials: Json | null
           google_sheets_id: string | null
           id: string
+          telegram_bot_token: string | null
+          telegram_chat_id: string | null
+          telegram_threshold: number | null
           updated_at: string
           user_id: string
           whatsapp_api_token: string | null
@@ -299,6 +305,9 @@ export type Database = {
           gmail_credentials?: Json | null
           google_sheets_id?: string | null
           id?: string
+          telegram_bot_token?: string | null
+          telegram_chat_id?: string | null
+          telegram_threshold?: number | null
           updated_at?: string
           user_id: string
           whatsapp_api_token?: string | null
@@ -311,6 +320,9 @@ export type Database = {
           gmail_credentials?: Json | null
           google_sheets_id?: string | null
           id?: string
+          telegram_bot_token?: string | null
+          telegram_chat_id?: string | null
+          telegram_threshold?: number | null
           updated_at?: string
           user_id?: string
           whatsapp_api_token?: string | null

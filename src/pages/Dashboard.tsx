@@ -103,7 +103,7 @@ const Dashboard = () => {
               <CardHeader>
                 <CardTitle>Configuration API</CardTitle>
                 <CardDescription>
-                  Configurez vos clés API pour WhatsApp, Gmail et Google Sheets
+                  Configurez vos clés API pour Telegram, Gmail et Google Sheets
                 </CardDescription>
               </CardHeader>
               <CardContent>
