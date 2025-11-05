@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Users, Mail, CheckCircle, AlertCircle } from 'lucide-react';
+import { Users, Mail, CheckCircle, AlertCircle, Tag, Calendar } from 'lucide-react';
 
 export const AdminStats = () => {
   const [stats, setStats] = useState({
@@ -9,6 +9,8 @@ export const AdminStats = () => {
     totalEmails: 0,
     successfulActions: 0,
     errors: 0,
+    totalRules: 0,
+    calendarEvents: 0,
   });
   const [loading, setLoading] = useState(true);
 
@@ -18,11 +20,13 @@ export const AdminStats = () => {
 
   const loadStats = async () => {
     try {
-      const [users, emails, successLogs, errorLogs] = await Promise.all([
+      const [users, emails, successLogs, errorLogs, rules, calendarLogs] = await Promise.all([
         supabase.from('profiles').select('id', { count: 'exact', head: true }),
         supabase.from('email_history').select('id', { count: 'exact', head: true }),
         supabase.from('activity_logs').select('id', { count: 'exact', head: true }).eq('status', 'success'),
         supabase.from('activity_logs').select('id', { count: 'exact', head: true }).eq('status', 'error'),
+        supabase.from('email_rules').select('id', { count: 'exact', head: true }),
+        supabase.from('activity_logs').select('id', { count: 'exact', head: true }).eq('action_type', 'calendar_event_created'),
       ]);
 
       setStats({
@@ -30,6 +34,8 @@ export const AdminStats = () => {
         totalEmails: emails.count || 0,
         successfulActions: successLogs.count || 0,
         errors: errorLogs.count || 0,
+        totalRules: rules.count || 0,
+        calendarEvents: calendarLogs.count || 0,
       });
     } catch (error) {
       console.error('Error loading stats:', error);
@@ -52,6 +58,18 @@ export const AdminStats = () => {
       color: 'text-accent',
     },
     {
+      title: 'Règles créées',
+      value: stats.totalRules,
+      icon: Tag,
+      color: 'text-info',
+    },
+    {
+      title: 'Événements calendrier',
+      value: stats.calendarEvents,
+      icon: Calendar,
+      color: 'text-success',
+    },
+    {
       title: 'Actions réussies',
       value: stats.successfulActions,
       icon: CheckCircle,
@@ -70,7 +88,7 @@ export const AdminStats = () => {
   }
 
   return (
-    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
       {statCards.map((stat) => (
         <Card key={stat.title}>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
