@@ -196,19 +196,60 @@ export const ApiConfiguration = () => {
       )}
 
       <div className="bg-muted/50 p-4 rounded-lg space-y-2">
-        <p className="text-sm font-medium">⚠️ Configuration Telegram :</p>
-        <ol className="text-sm text-muted-foreground space-y-1 list-decimal list-inside">
-          <li>Créez un bot avec @BotFather et obtenez le token</li>
-          <li>Obtenez votre Chat ID avec @userinfobot</li>
-          <li className="font-semibold text-foreground">IMPORTANT : Cherchez votre bot sur Telegram et envoyez-lui /start</li>
-          <li>Sauvegardez la configuration ci-dessus</li>
-          <li>Testez avec le bouton "Tester Telegram"</li>
-          <li>Configurez le webhook du bot en envoyant cette commande à @BotFather :<br/>
-            <code className="text-xs bg-background p-1 rounded mt-1 block">/setwebhook https://bqnzofttwsuxcucbyxov.supabase.co/functions/v1/telegram-webhook</code>
-          </li>
-        </ol>
+        <p className="text-sm font-medium">📱 Configuration du bot Telegram :</p>
+        <div className="space-y-3">
+          <div>
+            <p className="text-sm font-semibold text-foreground mb-1">1. Créer votre bot :</p>
+            <ul className="text-sm text-muted-foreground space-y-1 ml-4">
+              <li>• Cherchez @BotFather sur Telegram</li>
+              <li>• Envoyez /newbot</li>
+              <li>• Donnez un nom (ex: "Mon Assistant Email")</li>
+              <li>• Donnez un username (ex: "mon_assistant_email_bot")</li>
+              <li>• <span className="font-semibold text-foreground">Récupérez le token</span> (ex: 123456:ABC-DEF...)</li>
+            </ul>
+          </div>
+          
+          <div>
+            <p className="text-sm font-semibold text-foreground mb-1">2. Obtenir votre Chat ID :</p>
+            <ul className="text-sm text-muted-foreground space-y-1 ml-4">
+              <li>• Cherchez @userinfobot sur Telegram</li>
+              <li>• Envoyez /start</li>
+              <li>• <span className="font-semibold text-foreground">Récupérez votre Chat ID</span> (ex: 123456789)</li>
+            </ul>
+          </div>
+          
+          <div>
+            <p className="text-sm font-semibold text-foreground mb-1">3. Activer votre bot :</p>
+            <ul className="text-sm text-muted-foreground space-y-1 ml-4">
+              <li className="font-semibold text-destructive">• IMPORTANT : Cherchez votre bot sur Telegram et envoyez-lui /start</li>
+            </ul>
+          </div>
+          
+          <div>
+            <p className="text-sm font-semibold text-foreground mb-1">4. Sauvegarder et tester :</p>
+            <ul className="text-sm text-muted-foreground space-y-1 ml-4">
+              <li>• Remplissez le token et Chat ID ci-dessus</li>
+              <li>• Cliquez sur "Sauvegarder la configuration"</li>
+              <li>• Cliquez sur "Tester Telegram" pour vérifier</li>
+            </ul>
+          </div>
+          
+          <div>
+            <p className="text-sm font-semibold text-foreground mb-1">5. Activer les commandes (optionnel) :</p>
+            <ul className="text-sm text-muted-foreground space-y-1 ml-4">
+              <li>• Pour recevoir des résumés via Telegram, configurez le webhook :</li>
+              <li>• Allez sur @BotFather et envoyez :
+                <code className="text-xs bg-background p-1 rounded mt-1 block">/setwebhook</code>
+              </li>
+              <li>• Puis collez cette URL :
+                <code className="text-xs bg-background p-1 rounded mt-1 block">https://bqnzofttwsuxcucbyxov.supabase.co/functions/v1/telegram-webhook</code>
+              </li>
+              <li>• Cela vous permettra d'envoyer "résumé" ou "/summary" à votre bot pour recevoir un résumé</li>
+            </ul>
+          </div>
+        </div>
         <p className="text-xs text-destructive mt-2">
-          Si vous avez "chat not found", c'est que vous n'avez pas fait l'étape 3 !
+          ⚠️ Si vous avez "chat not found", c'est que vous n'avez pas fait l'étape 3 !
         </p>
       </div>
     </div>

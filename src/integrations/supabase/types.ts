@@ -296,8 +296,10 @@ export type Database = {
           gmail_credentials: Json | null
           google_sheets_id: string | null
           id: string
+          telegram_audio_default: boolean | null
           telegram_bot_token: string | null
           telegram_chat_id: string | null
+          telegram_text_default: boolean | null
           telegram_threshold: number | null
           updated_at: string
           user_id: string
@@ -311,8 +313,10 @@ export type Database = {
           gmail_credentials?: Json | null
           google_sheets_id?: string | null
           id?: string
+          telegram_audio_default?: boolean | null
           telegram_bot_token?: string | null
           telegram_chat_id?: string | null
+          telegram_text_default?: boolean | null
           telegram_threshold?: number | null
           updated_at?: string
           user_id: string
@@ -326,8 +330,10 @@ export type Database = {
           gmail_credentials?: Json | null
           google_sheets_id?: string | null
           id?: string
+          telegram_audio_default?: boolean | null
           telegram_bot_token?: string | null
           telegram_chat_id?: string | null
+          telegram_text_default?: boolean | null
           telegram_threshold?: number | null
           updated_at?: string
           user_id?: string

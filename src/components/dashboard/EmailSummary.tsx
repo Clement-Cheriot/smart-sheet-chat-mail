@@ -26,6 +26,7 @@ export const EmailSummary = () => {
     if (user) {
       loadSchedules();
       loadLatestSummary();
+      loadManualTelegramPreferences();
     }
   }, [user]);
 
@@ -94,6 +95,44 @@ export const EmailSummary = () => {
       }
     } catch (error) {
       console.error('Error loading latest summary:', error);
+    }
+  };
+
+  const loadManualTelegramPreferences = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('user_api_configs')
+        .select('telegram_text_default, telegram_audio_default')
+        .eq('user_id', user?.id)
+        .maybeSingle();
+
+      if (error && error.code !== 'PGRST116') throw error;
+      
+      if (data) {
+        setTelegramTextManual(data.telegram_text_default || false);
+        setTelegramAudioManual(data.telegram_audio_default || false);
+      }
+    } catch (error) {
+      console.error('Error loading manual Telegram preferences:', error);
+    }
+  };
+
+  const saveManualTelegramPreferences = async (text: boolean, audio: boolean) => {
+    try {
+      const { error } = await supabase
+        .from('user_api_configs')
+        .upsert(
+          {
+            user_id: user?.id,
+            telegram_text_default: text,
+            telegram_audio_default: audio,
+          },
+          { onConflict: 'user_id' }
+        );
+
+      if (error) throw error;
+    } catch (error) {
+      console.error('Error saving manual Telegram preferences:', error);
     }
   };
 
@@ -392,7 +431,11 @@ export const EmailSummary = () => {
                 type="checkbox"
                 id="telegram-text-manual"
                 checked={telegramTextManual}
-                onChange={(e) => setTelegramTextManual(e.target.checked)}
+                onChange={(e) => {
+                  const newValue = e.target.checked;
+                  setTelegramTextManual(newValue);
+                  saveManualTelegramPreferences(newValue, telegramAudioManual);
+                }}
                 className="h-4 w-4"
               />
               <label htmlFor="telegram-text-manual" className="text-sm cursor-pointer">
@@ -404,7 +447,11 @@ export const EmailSummary = () => {
                 type="checkbox"
                 id="telegram-audio-manual"
                 checked={telegramAudioManual}
-                onChange={(e) => setTelegramAudioManual(e.target.checked)}
+                onChange={(e) => {
+                  const newValue = e.target.checked;
+                  setTelegramAudioManual(newValue);
+                  saveManualTelegramPreferences(telegramTextManual, newValue);
+                }}
                 className="h-4 w-4"
               />
               <label htmlFor="telegram-audio-manual" className="text-sm cursor-pointer">
