@@ -304,14 +304,51 @@ serve(async (req) => {
       }
     }
 
-    // Update actions for calendar if needed
-    if (aiAnalysis.needs_calendar_action) {
-      await supabase
-        .from('email_history')
-        .update({ 
-          actions_taken: [...actionsTaken, { type: 'calendar_needed', value: true }]
-        })
-        .eq('id', historyRecord.id);
+    // Automatically create calendar event if needed
+    if (aiAnalysis.needs_calendar_action && aiAnalysis.calendar_details) {
+      console.log('Creating calendar event automatically:', aiAnalysis.calendar_details);
+      
+      try {
+        const { data: calendarData, error: calendarError } = await supabase.functions.invoke('gmail-calendar', {
+          body: {
+            userId: emailData.userId,
+            eventDetails: {
+              title: aiAnalysis.calendar_details.title || emailData.subject,
+              date: aiAnalysis.calendar_details.date,
+              duration_minutes: aiAnalysis.calendar_details.duration_minutes || 60,
+              location: aiAnalysis.calendar_details.location,
+              attendees: aiAnalysis.calendar_details.attendees,
+              description: aiAnalysis.calendar_details.description || aiAnalysis.body_summary,
+            }
+          }
+        });
+
+        if (calendarError) {
+          console.error('Error creating calendar event:', calendarError);
+          await supabase
+            .from('email_history')
+            .update({ 
+              actions_taken: [...actionsTaken, { type: 'calendar_failed', value: true, error: calendarError.message }]
+            })
+            .eq('id', historyRecord.id);
+        } else {
+          console.log('Calendar event created successfully:', calendarData?.eventId);
+          await supabase
+            .from('email_history')
+            .update({ 
+              actions_taken: [...actionsTaken, { type: 'calendar_created', value: true, eventId: calendarData?.eventId }]
+            })
+            .eq('id', historyRecord.id);
+        }
+      } catch (calErr: any) {
+        console.error('Exception creating calendar event:', calErr);
+        await supabase
+          .from('email_history')
+          .update({ 
+            actions_taken: [...actionsTaken, { type: 'calendar_error', value: true, error: calErr.message }]
+          })
+          .eq('id', historyRecord.id);
+      }
     }
 
     // Get user's Telegram threshold (default to 8)

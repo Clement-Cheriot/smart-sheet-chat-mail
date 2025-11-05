@@ -75,13 +75,40 @@ serve(async (req) => {
           }
         });
       } else {
-        console.log('Summary sent successfully');
+        console.log('Summary generated, now creating audio...');
+        
+        // Save summary to database
         await supabase.from('email_summaries').insert({
           user_id: userId,
           period_start: startTime.toISOString(),
           period_end: now.toISOString(),
           summary_content: data?.summary || '',
         });
+
+        // Generate audio from summary
+        const { data: audioData, error: audioError } = await supabase.functions.invoke('text-to-speech', {
+          body: { summaryText: data?.summary || '' }
+        });
+
+        if (audioError) {
+          console.error('Error generating audio:', audioError);
+          // Send text-only version if audio fails
+          await supabase.functions.invoke('telegram-sender', {
+            body: { 
+              userId,
+              message: `📊 *Résumé emails (24h)*\n\n${data?.summary}\n\n⚠️ Audio non disponible`
+            }
+          });
+        } else {
+          // Send both text and audio via Telegram
+          await supabase.functions.invoke('telegram-sender', {
+            body: { 
+              userId,
+              message: "📊 Résumé emails (24h)",
+              audioBase64: audioData.audioBase64
+            }
+          });
+        }
       }
     } else if (messageText.includes('aide') || messageText.includes('help') || messageText.includes('/help') || messageText.includes('/start')) {
       await supabase.functions.invoke('telegram-sender', {

@@ -425,16 +425,10 @@ export const EmailSummary = () => {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 gap-2">
-            <Button onClick={sendManualSummary} disabled={loading} className="w-full">
-              <Send className="h-4 w-4 mr-2" />
-              {loading ? 'Envoi en cours...' : 'Envoyer le résumé maintenant'}
-            </Button>
-            <Button onClick={sendLast24hSummary} disabled={loading} variant="secondary" className="w-full">
-              <Send className="h-4 w-4 mr-2" />
-              {loading ? 'Test 24h en cours...' : 'Tester le résumé des dernières 24h'}
-            </Button>
-          </div>
+          <Button onClick={sendManualSummary} disabled={loading} className="w-full">
+            <Send className="h-4 w-4 mr-2" />
+            {loading ? 'Envoi en cours...' : 'Envoyer le résumé maintenant'}
+          </Button>
         </CardContent>
       </Card>
     </div>
