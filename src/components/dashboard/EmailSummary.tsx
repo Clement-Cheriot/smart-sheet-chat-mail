@@ -199,8 +199,7 @@ export const EmailSummary = () => {
 
       toast({ title: 'Succès', description: 'Résumé généré et enregistré' });
       loadLatestSummary();
-      setManualStartDate('');
-      setManualEndDate('');
+      // Ne pas réinitialiser les dates pour permettre un second envoi immédiat
     } catch (error: any) {
       console.error('Error sending summary:', error);
       toast({ title: 'Erreur', description: error.message || 'Impossible d\'envoyer le résumé', variant: 'destructive' });
