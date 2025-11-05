@@ -19,11 +19,35 @@ export const EmailSummary = () => {
   const [sendingWhatsApp, setSendingWhatsApp] = useState(false);
   const [generatingAudio, setGeneratingAudio] = useState(false);
   const [latestSummary, setLatestSummary] = useState<{ content: string; start: string; end: string } | null>(null);
+  
+  // Refs for robust value reading (avoids rare controlled input sync issues)
+  const startRef = useRef<HTMLInputElement>(null);
+  const endRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (user) {
       loadSchedules();
       loadLatestSummary();
+    }
+  }, [user]);
+
+  // Prefill manual date range with last 24h to avoid empty inputs
+  const toLocalInputValue = (d: Date) => {
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const yyyy = d.getFullYear();
+    const mm = pad(d.getMonth() + 1);
+    const dd = pad(d.getDate());
+    const hh = pad(d.getHours());
+    const mi = pad(d.getMinutes());
+    return `${yyyy}-${mm}-${dd}T${hh}:${mi}`;
+  };
+
+  useEffect(() => {
+    if (user && !manualStartDate && !manualEndDate) {
+      const now = new Date();
+      const start = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+      setManualStartDate(toLocalInputValue(start));
+      setManualEndDate(toLocalInputValue(now));
     }
   }, [user]);
 
@@ -138,8 +162,8 @@ export const EmailSummary = () => {
   };
 
   const sendManualSummary = async () => {
-    const startRaw = (manualStartDate || '').trim();
-    const endRaw = (manualEndDate || '').trim();
+    const startRaw = (startRef.current?.value ?? manualStartDate ?? '').trim();
+    const endRaw = (endRef.current?.value ?? manualEndDate ?? '').trim();
 
     if (!startRaw || !endRaw) {
       toast({ title: 'Erreur', description: 'Veuillez insérer les dates de début et de fin', variant: 'destructive' });
@@ -403,6 +427,7 @@ export const EmailSummary = () => {
                 step={60}
                 value={manualStartDate}
                 onChange={(e) => setManualStartDate(e.target.value)}
+                ref={startRef}
               />
             </div>
             <div className="space-y-2">
@@ -413,6 +438,7 @@ export const EmailSummary = () => {
                 step={60}
                 value={manualEndDate}
                 onChange={(e) => setManualEndDate(e.target.value)}
+                ref={endRef}
               />
             </div>
           </div>

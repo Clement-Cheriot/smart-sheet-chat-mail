@@ -81,13 +81,19 @@ serve(async (req) => {
       throw new Error(`Échec de la génération audio: ${ttsResponse.status}`);
     }
 
-    // Get audio as blob and convert to base64
+    // Get audio as blob and convert to base64 (chunked to avoid call stack overflow)
     const audioBlob = await ttsResponse.blob();
     const arrayBuffer = await audioBlob.arrayBuffer();
     const uint8Array = new Uint8Array(arrayBuffer);
     
-    // Convert to base64
-    const base64Audio = btoa(String.fromCharCode(...uint8Array));
+    // Convert to base64 safely
+    let binary = '';
+    const chunkSize = 0x8000; // 32KB per chunk
+    for (let i = 0; i < uint8Array.length; i += chunkSize) {
+      const chunk = uint8Array.subarray(i, i + chunkSize);
+      binary += String.fromCharCode(...chunk);
+    }
+    const base64Audio = btoa(binary);
 
     console.log('Audio generated successfully');
 
