@@ -9,6 +9,7 @@ const corsHeaders = {
 interface TelegramMessage {
   userId: string;
   message: string;
+  audioBase64?: string;
 }
 
 serve(async (req) => {
@@ -21,8 +22,8 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    const { userId, message }: TelegramMessage = await req.json();
-    console.log('Sending Telegram message to user:', userId);
+    const { userId, message, audioBase64 }: TelegramMessage = await req.json();
+    console.log('Sending Telegram message to user:', userId, audioBase64 ? '(with audio)' : '');
 
     // Get user's Telegram config
     const { data: config, error: configError } = await supabase
@@ -43,7 +44,7 @@ serve(async (req) => {
       );
     }
 
-    // Send message via Telegram Bot API
+    // Send text message via Telegram Bot API
     const telegramResponse = await fetch(
       `https://api.telegram.org/bot${config.telegram_bot_token}/sendMessage`,
       {
@@ -86,6 +87,36 @@ serve(async (req) => {
 
     const result = await telegramResponse.json();
     console.log('Message Telegram envoyé:', result);
+
+    // Send audio if provided
+    if (audioBase64) {
+      console.log('Sending audio to Telegram...');
+      
+      // Convert base64 to binary
+      const binaryAudio = Uint8Array.from(atob(audioBase64), c => c.charCodeAt(0));
+      const audioBlob = new Blob([binaryAudio], { type: 'audio/mpeg' });
+      
+      // Create form data
+      const formData = new FormData();
+      formData.append('chat_id', config.telegram_chat_id);
+      formData.append('audio', audioBlob, 'resume_audio.mp3');
+      formData.append('caption', '🎧 Résumé audio de vos emails');
+      
+      const audioUrl = `https://api.telegram.org/bot${config.telegram_bot_token}/sendAudio`;
+      const audioResponse = await fetch(audioUrl, {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!audioResponse.ok) {
+        const errorText = await audioResponse.text();
+        console.error('Telegram audio error:', errorText);
+        throw new Error(`Erreur envoi audio: ${errorText}`);
+      }
+
+      const audioResult = await audioResponse.json();
+      console.log('Audio Telegram envoyé:', audioResult);
+    }
 
     // Log activity
     await supabase.from('activity_logs').insert({

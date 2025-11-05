@@ -10,6 +10,7 @@ import { ApiConfiguration } from '@/components/dashboard/ApiConfiguration';
 import { EmailRules } from '@/components/dashboard/EmailRules';
 import { GmailConnect } from '@/components/dashboard/GmailConnect';
 import { EmailSummary } from '@/components/dashboard/EmailSummary';
+import { CalendarEvent } from '@/components/dashboard/CalendarEvent';
 
 const Dashboard = () => {
   const { user, loading, signOut } = useAuth();
@@ -93,8 +94,9 @@ const Dashboard = () => {
             </Card>
           </TabsContent>
 
-          <TabsContent value="summary" className="space-y-4">
+          <TabsContent value="summary" className="space-y-6">
             <EmailSummary />
+            <CalendarEvent />
           </TabsContent>
 
           <TabsContent value="config" className="space-y-4">

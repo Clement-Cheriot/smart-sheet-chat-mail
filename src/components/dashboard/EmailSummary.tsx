@@ -158,7 +158,8 @@ export const EmailSummary = () => {
   };
 
   const sendManualSummary = async () => {
-    if (!manualStartDate || !manualEndDate) {
+    // Simple validation - just check both dates exist
+    if (!manualStartDate?.trim() || !manualEndDate?.trim()) {
       toast({ title: 'Erreur', description: 'Veuillez sélectionner les dates de début et de fin', variant: 'destructive' });
       return;
     }
@@ -269,45 +270,38 @@ export const EmailSummary = () => {
   };
 
   const generateAudioSummary = async () => {
-    if (!latestSummary?.content) {
+    if (!latestSummary?.content || !user?.id) {
       toast({ title: 'Erreur', description: 'Aucun résumé disponible', variant: 'destructive' });
       return;
     }
 
     setGeneratingAudio(true);
     try {
-      const { data, error } = await supabase.functions.invoke('text-to-speech', {
-        body: {
-          summaryText: latestSummary.content,
-        },
+      console.log('Generating audio and sending via Telegram...');
+      
+      // Generate audio
+      const { data: audioData, error: audioError } = await supabase.functions.invoke('text-to-speech', {
+        body: { summaryText: latestSummary.content }
       });
 
-      if (error) throw error;
+      if (audioError) throw audioError;
 
-      // Play the audio
-      const audioBlob = new Blob(
-        [Uint8Array.from(atob(data.audioBase64), c => c.charCodeAt(0))],
-        { type: 'audio/mpeg' }
-      );
-      const audioUrl = URL.createObjectURL(audioBlob);
-      const audio = new Audio(audioUrl);
-      
-      audio.onended = () => {
-        URL.revokeObjectURL(audioUrl);
-        setGeneratingAudio(false);
-        toast({ title: 'Succès', description: 'Lecture audio terminée' });
-      };
-      
-      audio.onerror = () => {
-        URL.revokeObjectURL(audioUrl);
-        setGeneratingAudio(false);
-        toast({ title: 'Erreur', description: 'Erreur lors de la lecture audio', variant: 'destructive' });
-      };
+      // Send audio via Telegram
+      const { error: telegramError } = await supabase.functions.invoke('telegram-sender', {
+        body: { 
+          userId: user.id,
+          message: "🎧 Résumé audio de vos emails",
+          audioBase64: audioData.audioBase64
+        }
+      });
 
-      await audio.play();
+      if (telegramError) throw telegramError;
+      
+      toast({ title: 'Audio envoyé', description: 'Le résumé audio a été envoyé sur Telegram' });
     } catch (error: any) {
       console.error('Error generating audio:', error);
-      toast({ title: 'Erreur', description: error.message || 'Échec de la génération audio', variant: 'destructive' });
+      toast({ title: 'Erreur', description: error.message || 'Échec de l\'envoi audio', variant: 'destructive' });
+    } finally {
       setGeneratingAudio(false);
     }
   };
