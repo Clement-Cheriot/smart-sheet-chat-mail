@@ -79,6 +79,21 @@ serve(async (req) => {
       // Compute start date from last summary end or fallback to 1 hour before now
       const startIso = lastEnd ? lastEnd.toISOString() : new Date(now.getTime() - 60 * 60 * 1000).toISOString();
 
+      // Get telegram preferences
+      const { data: scheduleRow, error: schedErr } = await supabase
+        .from("email_summary_schedules")
+        .select("telegram_text, telegram_audio")
+        .eq("user_id", row.user_id)
+        .eq("is_active", true)
+        .maybeSingle();
+
+      if (schedErr) {
+        console.error("Error loading schedule preferences:", schedErr);
+      }
+
+      const sendText = scheduleRow?.telegram_text || false;
+      const sendAudio = scheduleRow?.telegram_audio || false;
+
       try {
         const { data, error } = await supabase.functions.invoke("email-summary", {
           body: {
@@ -86,6 +101,8 @@ serve(async (req) => {
             period: "custom",
             startDate: startIso,
             endDate: nowIso,
+            sendTelegramText: sendText,
+            sendTelegramAudio: sendAudio,
           },
         });
 

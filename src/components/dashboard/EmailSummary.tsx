@@ -16,9 +16,11 @@ export const EmailSummary = () => {
   const [manualStartDate, setManualStartDate] = useState('');
   const [manualEndDate, setManualEndDate] = useState('');
   const [loading, setLoading] = useState(false);
-  const [sendingTelegram, setSendingTelegram] = useState(false);
-  const [generatingAudio, setGeneratingAudio] = useState(false);
   const [latestSummary, setLatestSummary] = useState<{ content: string; start: string; end: string } | null>(null);
+  const [telegramTextAuto, setTelegramTextAuto] = useState(false);
+  const [telegramAudioAuto, setTelegramAudioAuto] = useState(false);
+  const [telegramTextManual, setTelegramTextManual] = useState(false);
+  const [telegramAudioManual, setTelegramAudioManual] = useState(false);
 
   useEffect(() => {
     if (user) {
@@ -51,17 +53,18 @@ export const EmailSummary = () => {
     try {
       const { data, error } = await supabase
         .from('email_summary_schedules')
-        .select('schedule_times')
+        .select('schedule_times, telegram_text, telegram_audio')
         .eq('user_id', user?.id)
-        .eq('is_active', true);
+        .eq('is_active', true)
+        .maybeSingle();
 
       if (error) throw error;
 
-      if (Array.isArray(data)) {
-        const merged = Array.from(
-          new Set(data.flatMap((r: any) => r?.schedule_times || []))
-        ).sort();
-        setSchedules(merged);
+      if (data) {
+        const times = Array.isArray(data.schedule_times) ? data.schedule_times : [];
+        setSchedules(times.sort());
+        setTelegramTextAuto(data.telegram_text || false);
+        setTelegramAudioAuto(data.telegram_audio || false);
       } else {
         setSchedules([]);
       }
@@ -117,6 +120,8 @@ export const EmailSummary = () => {
             user_id: user?.id,
             schedule_times: updatedSchedules,
             is_active: true,
+            telegram_text: telegramTextAuto,
+            telegram_audio: telegramAudioAuto,
           },
           { onConflict: 'user_id' }
         );
@@ -143,6 +148,8 @@ export const EmailSummary = () => {
             user_id: user?.id,
             schedule_times: updatedSchedules,
             is_active: true,
+            telegram_text: telegramTextAuto,
+            telegram_audio: telegramAudioAuto,
           },
           { onConflict: 'user_id' }
         );
@@ -185,6 +192,8 @@ export const EmailSummary = () => {
           period: 'custom',
           startDate: startDate.toISOString(),
           endDate: endDate.toISOString(),
+          sendTelegramText: telegramTextManual,
+          sendTelegramAudio: telegramAudioManual,
         },
       });
 
@@ -208,100 +217,27 @@ export const EmailSummary = () => {
     }
   };
 
-  const sendLast24hSummary = async () => {
-    setLoading(true);
+  const saveTelegramPreferences = async () => {
     try {
-      const now = new Date();
-      const start = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-
-      const { data, error } = await supabase.functions.invoke('email-summary', {
-        body: {
-          userId: user?.id,
-          period: 'custom',
-          startDate: start.toISOString(),
-          endDate: now.toISOString(),
-        },
-      });
+      const { error } = await supabase
+        .from('email_summary_schedules')
+        .upsert(
+          {
+            user_id: user?.id,
+            schedule_times: schedules,
+            is_active: true,
+            telegram_text: telegramTextAuto,
+            telegram_audio: telegramAudioAuto,
+          },
+          { onConflict: 'user_id' }
+        );
 
       if (error) throw error;
 
-      await supabase.from('email_summaries').insert({
-        user_id: user?.id,
-        period_start: start.toISOString(),
-        period_end: now.toISOString(),
-        summary_content: (data as any)?.summary,
-      });
-
-      toast({ title: 'Succès', description: 'Résumé des dernières 24h généré' });
-      loadLatestSummary();
-    } catch (error: any) {
-      console.error('Error sending 24h summary:', error);
-      toast({ title: 'Erreur', description: error.message || "Échec de l'envoi du résumé 24h", variant: 'destructive' });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const sendSummaryToTelegram = async () => {
-    if (!latestSummary?.content) {
-      toast({ title: 'Erreur', description: 'Aucun résumé disponible', variant: 'destructive' });
-      return;
-    }
-
-    setSendingTelegram(true);
-    try {
-      const { data, error } = await supabase.functions.invoke('telegram-sender', {
-        body: {
-          userId: user?.id,
-          message: `📊 *Résumé emails*\n\n${latestSummary.content}`,
-        },
-      });
-
-      if (error) throw error;
-
-      toast({ title: 'Succès', description: 'Résumé envoyé sur Telegram' });
-    } catch (error: any) {
-      console.error('Error sending to Telegram:', error);
-      toast({ title: 'Erreur', description: error.message || 'Échec de l\'envoi Telegram', variant: 'destructive' });
-    } finally {
-      setSendingTelegram(false);
-    }
-  };
-
-  const generateAudioSummary = async () => {
-    if (!latestSummary?.content || !user?.id) {
-      toast({ title: 'Erreur', description: 'Aucun résumé disponible', variant: 'destructive' });
-      return;
-    }
-
-    setGeneratingAudio(true);
-    try {
-      console.log('Generating audio and sending via Telegram...');
-      
-      // Generate audio
-      const { data: audioData, error: audioError } = await supabase.functions.invoke('text-to-speech', {
-        body: { summaryText: latestSummary.content }
-      });
-
-      if (audioError) throw audioError;
-
-      // Send audio via Telegram
-      const { error: telegramError } = await supabase.functions.invoke('telegram-sender', {
-        body: { 
-          userId: user.id,
-          message: "🎧 Résumé audio de vos emails",
-          audioBase64: audioData.audioBase64
-        }
-      });
-
-      if (telegramError) throw telegramError;
-      
-      toast({ title: 'Audio envoyé', description: 'Le résumé audio a été envoyé sur Telegram' });
-    } catch (error: any) {
-      console.error('Error generating audio:', error);
-      toast({ title: 'Erreur', description: error.message || 'Échec de l\'envoi audio', variant: 'destructive' });
-    } finally {
-      setGeneratingAudio(false);
+      toast({ title: 'Succès', description: 'Préférences Telegram mises à jour' });
+    } catch (error) {
+      console.error('Error saving telegram preferences:', error);
+      toast({ title: 'Erreur', description: 'Impossible de sauvegarder les préférences', variant: 'destructive' });
     }
   };
 
@@ -310,24 +246,12 @@ export const EmailSummary = () => {
       {latestSummary && (
         <Card>
           <CardHeader>
-          <CardTitle className="flex items-center justify-between">
+            <CardTitle className="flex items-center justify-between">
               <span>Dernier résumé</span>
-              <div className="flex gap-2">
-                <Button onClick={copyToClipboard} variant="outline" size="sm">
-                  <Copy className="h-4 w-4 mr-2" />
-                  Copier
-                </Button>
-                <Button onClick={generateAudioSummary} disabled={generatingAudio} variant="outline" size="sm">
-                  <svg className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
-                  </svg>
-                  {generatingAudio ? 'Génération...' : 'Audio'}
-                </Button>
-                <Button onClick={sendSummaryToTelegram} disabled={sendingTelegram} variant="outline" size="sm">
-                  <Send className="h-4 w-4 mr-2" />
-                  {sendingTelegram ? 'Envoi...' : 'Telegram'}
-                </Button>
-              </div>
+              <Button onClick={copyToClipboard} variant="outline" size="sm">
+                <Copy className="h-4 w-4 mr-2" />
+                Copier
+              </Button>
             </CardTitle>
             <CardDescription>
               Du {new Date(latestSummary.start).toLocaleString('fr-FR')} au {new Date(latestSummary.end).toLocaleString('fr-FR')}
@@ -384,9 +308,45 @@ export const EmailSummary = () => {
           </div>
 
           {schedules.length > 0 && (
-            <p className="text-sm text-muted-foreground">
-              Le résumé de chaque horaire couvrira la période depuis le dernier horaire
-            </p>
+            <>
+              <p className="text-sm text-muted-foreground">
+                Le résumé de chaque horaire couvrira la période depuis le dernier horaire
+              </p>
+              
+              <div className="space-y-3 pt-4 border-t">
+                <Label>Options d'envoi Telegram</Label>
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="checkbox"
+                    id="telegram-text-auto"
+                    checked={telegramTextAuto}
+                    onChange={(e) => {
+                      setTelegramTextAuto(e.target.checked);
+                      saveTelegramPreferences();
+                    }}
+                    className="h-4 w-4"
+                  />
+                  <label htmlFor="telegram-text-auto" className="text-sm cursor-pointer">
+                    Envoyer en texte sur Telegram
+                  </label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="checkbox"
+                    id="telegram-audio-auto"
+                    checked={telegramAudioAuto}
+                    onChange={(e) => {
+                      setTelegramAudioAuto(e.target.checked);
+                      saveTelegramPreferences();
+                    }}
+                    className="h-4 w-4"
+                  />
+                  <label htmlFor="telegram-audio-auto" className="text-sm cursor-pointer">
+                    Envoyer en audio sur Telegram
+                  </label>
+                </div>
+              </div>
+            </>
           )}
         </CardContent>
       </Card>
@@ -422,6 +382,34 @@ export const EmailSummary = () => {
                 value={manualEndDate}
                 onChange={(e) => setManualEndDate(e.target.value)}
               />
+            </div>
+          </div>
+
+          <div className="space-y-3 pt-2 border-t">
+            <Label>Options d'envoi Telegram</Label>
+            <div className="flex items-center space-x-2">
+              <input
+                type="checkbox"
+                id="telegram-text-manual"
+                checked={telegramTextManual}
+                onChange={(e) => setTelegramTextManual(e.target.checked)}
+                className="h-4 w-4"
+              />
+              <label htmlFor="telegram-text-manual" className="text-sm cursor-pointer">
+                Envoyer en texte sur Telegram
+              </label>
+            </div>
+            <div className="flex items-center space-x-2">
+              <input
+                type="checkbox"
+                id="telegram-audio-manual"
+                checked={telegramAudioManual}
+                onChange={(e) => setTelegramAudioManual(e.target.checked)}
+                className="h-4 w-4"
+              />
+              <label htmlFor="telegram-audio-manual" className="text-sm cursor-pointer">
+                Envoyer en audio sur Telegram
+              </label>
             </div>
           </div>
 

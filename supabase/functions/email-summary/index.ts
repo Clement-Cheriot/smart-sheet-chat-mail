@@ -16,7 +16,47 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    const { userId, period, startDate, endDate } = await req.json();
+    const sendSummaryViaOptions = async (
+      summaryMessage: string, 
+      userId: string, 
+      sendText: boolean, 
+      sendAudio: boolean
+    ) => {
+      try {
+        if (sendText) {
+          await supabase.functions.invoke('telegram-sender', {
+            body: {
+              userId,
+              message: summaryMessage,
+            }
+          });
+        }
+
+        if (sendAudio) {
+          // Generate audio from summary
+          const { data: audioData, error: audioError } = await supabase.functions.invoke('text-to-speech', {
+            body: { summaryText: summaryMessage }
+          });
+
+          if (audioError) {
+            console.error('Error generating audio:', audioError);
+          } else {
+            // Send audio via Telegram
+            await supabase.functions.invoke('telegram-sender', {
+              body: { 
+                userId,
+                message: "🎧 Résumé audio de vos emails",
+                audioBase64: audioData.audioBase64
+              }
+            });
+          }
+        }
+      } catch (error) {
+        console.error('Error sending summary via options:', error);
+      }
+    };
+
+    const { userId, period, startDate, endDate, sendTelegramText, sendTelegramAudio } = await req.json();
     console.log(`Generating ${period} summary for user:`, userId);
 
     // Determine time range based on period
@@ -154,13 +194,23 @@ serve(async (req) => {
 
     const summaryMessage = lines.join('\n');
 
-    // Send via Telegram
-    await supabase.functions.invoke('telegram-sender', {
-      body: {
-        userId,
-        message: summaryMessage,
-      }
-    });
+    // Send via Telegram based on options
+    if (sendTelegramText !== undefined || sendTelegramAudio !== undefined) {
+      await sendSummaryViaOptions(
+        summaryMessage, 
+        userId, 
+        sendTelegramText || false, 
+        sendTelegramAudio || false
+      );
+    } else {
+      // Default behavior: send text only
+      await supabase.functions.invoke('telegram-sender', {
+        body: {
+          userId,
+          message: summaryMessage,
+        }
+      });
+    }
 
     // Log activity
     await supabase.from('activity_logs').insert({

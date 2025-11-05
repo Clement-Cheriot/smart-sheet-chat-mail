@@ -215,6 +215,8 @@ export type Database = {
           id: string
           is_active: boolean | null
           schedule_times: string[]
+          telegram_audio: boolean | null
+          telegram_text: boolean | null
           updated_at: string | null
           user_id: string
         }
@@ -223,6 +225,8 @@ export type Database = {
           id?: string
           is_active?: boolean | null
           schedule_times?: string[]
+          telegram_audio?: boolean | null
+          telegram_text?: boolean | null
           updated_at?: string | null
           user_id: string
         }
@@ -231,6 +235,8 @@ export type Database = {
           id?: string
           is_active?: boolean | null
           schedule_times?: string[]
+          telegram_audio?: boolean | null
+          telegram_text?: boolean | null
           updated_at?: string | null
           user_id?: string
         }

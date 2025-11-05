@@ -84,6 +84,71 @@ export const EmailRules = () => {
     }
   };
 
+  const exportRules = () => {
+    if (rules.length === 0) {
+      toast({
+        title: 'Aucune règle',
+        description: 'Aucune règle à exporter',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    // Format rules for export
+    const exportData = rules.map((rule) => {
+      // Convert sender_pattern back to domains
+      let domains = '';
+      if (rule.sender_pattern) {
+        const domainMatch = rule.sender_pattern.match(/\((.*?)\)/);
+        if (domainMatch) {
+          domains = domainMatch[1].replace(/\\\./g, '.').replace(/\|/g, ',');
+        }
+      }
+
+      return {
+        rule_id: rule.id.substring(0, 8),
+        classification: rule.label_to_apply || '',
+        priority: rule.priority,
+        enables: rule.is_active,
+        domaines: domains,
+        keywords: rule.keywords?.join(',') || '',
+        create_draft: rule.create_draft || false,
+        auto_reply: rule.auto_reply || false,
+        exclude_newsletters: rule.exclude_newsletters !== false,
+        exclude_marketing: rule.exclude_marketing !== false,
+        description: ''
+      };
+    });
+
+    // Create workbook and worksheet
+    const worksheet = XLSX.utils.json_to_sheet(exportData);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Règles');
+
+    // Set column widths
+    worksheet['!cols'] = [
+      { wch: 12 }, // rule_id
+      { wch: 20 }, // classification
+      { wch: 10 }, // priority
+      { wch: 10 }, // enables
+      { wch: 40 }, // domaines
+      { wch: 40 }, // keywords
+      { wch: 15 }, // create_draft
+      { wch: 15 }, // auto_reply
+      { wch: 20 }, // exclude_newsletters
+      { wch: 20 }, // exclude_marketing
+      { wch: 30 }  // description
+    ];
+
+    // Download
+    XLSX.writeFile(workbook, `regles_email_${new Date().toISOString().split('T')[0]}.xlsx`);
+    
+    toast({
+      title: 'Export réussi',
+      description: `${rules.length} règle(s) exportée(s)`,
+    });
+  };
+
   const downloadTemplate = () => {
     // Create template data
     const templateData = [
@@ -590,16 +655,16 @@ export const EmailRules = () => {
             onClick={createExampleRules}
             size="sm"
           >
-            <Wand2 className="mr-2 h-4 w-4" />
-            Exemples
+            <Wand2 className="h-4 w-4 mr-2" />
+            Créer des exemples
           </Button>
           <Button 
             variant="outline" 
             onClick={downloadTemplate}
             size="sm"
           >
-            <Download className="mr-2 h-4 w-4" />
-            Template
+            <Download className="h-4 w-4 mr-2" />
+            Template Excel
           </Button>
           <Button 
             variant="outline" 
@@ -607,22 +672,24 @@ export const EmailRules = () => {
             disabled={importing}
             size="sm"
           >
-            <Upload className="mr-2 h-4 w-4" />
-            {importing ? 'Import...' : 'Importer'}
+            <Upload className="h-4 w-4 mr-2" />
+            {importing ? 'Import...' : 'Importer Excel'}
           </Button>
-          {getCurrentRules().length > 0 && (
-            <Button 
-              variant="outline" 
-              onClick={clearCurrentRules}
-              size="sm"
-            >
-              <Trash className="mr-2 h-4 w-4" />
-              Vider ({getCurrentRules().length})
-            </Button>
-          )}
-          <Button onClick={() => setEditingRule({ ruleType: activeTab, user_id: user?.id } as any)} size="sm">
-            <Plus className="mr-2 h-4 w-4" />
-            Nouvelle règle
+          <Button 
+            variant="outline" 
+            onClick={exportRules}
+            size="sm"
+          >
+            <Download className="h-4 w-4 mr-2" />
+            Exporter règles
+          </Button>
+          <Button 
+            variant="destructive" 
+            onClick={clearCurrentRules}
+            size="sm"
+          >
+            <Trash className="h-4 w-4 mr-2" />
+            Supprimer tout
           </Button>
         </div>
 

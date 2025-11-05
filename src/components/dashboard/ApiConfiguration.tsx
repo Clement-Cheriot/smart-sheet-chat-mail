@@ -11,7 +11,6 @@ export const ApiConfiguration = () => {
   const [config, setConfig] = useState({
     telegram_bot_token: '',
     telegram_chat_id: '',
-    google_sheets_id: '',
     telegram_threshold: 8,
   });
   const [showTokens, setShowTokens] = useState(false);
@@ -32,7 +31,7 @@ export const ApiConfiguration = () => {
     try {
       const { data, error } = await supabase
         .from('user_api_configs')
-        .select('telegram_bot_token, telegram_chat_id, google_sheets_id, telegram_threshold')
+        .select('telegram_bot_token, telegram_chat_id, telegram_threshold')
         .eq('user_id', user?.id)
         .maybeSingle();
 
@@ -42,7 +41,6 @@ export const ApiConfiguration = () => {
         setConfig({
           telegram_bot_token: data.telegram_bot_token || '',
           telegram_chat_id: data.telegram_chat_id || '',
-          google_sheets_id: data.google_sheets_id || '',
           telegram_threshold: data.telegram_threshold || 8,
         });
       }
@@ -173,19 +171,6 @@ export const ApiConfiguration = () => {
           </p>
         </div>
 
-        <div>
-          <Label htmlFor="sheets-id">Google Sheets ID</Label>
-          <Input
-            id="sheets-id"
-            value={config.google_sheets_id}
-            onChange={(e) => setConfig({ ...config, google_sheets_id: e.target.value })}
-            placeholder="ID de votre Google Sheet avec les règles"
-            className="mt-2"
-          />
-          <p className="text-xs text-muted-foreground mt-1">
-            L'ID se trouve dans l'URL de votre Google Sheet
-          </p>
-        </div>
       </div>
 
       <div className="grid grid-cols-1 gap-2">
@@ -211,13 +196,16 @@ export const ApiConfiguration = () => {
       )}
 
       <div className="bg-muted/50 p-4 rounded-lg space-y-2">
-        <p className="text-sm font-medium">⚠️ Configuration Telegram (à suivre dans l'ordre) :</p>
+        <p className="text-sm font-medium">⚠️ Configuration Telegram :</p>
         <ol className="text-sm text-muted-foreground space-y-1 list-decimal list-inside">
           <li>Créez un bot avec @BotFather et obtenez le token</li>
           <li>Obtenez votre Chat ID avec @userinfobot</li>
           <li className="font-semibold text-foreground">IMPORTANT : Cherchez votre bot sur Telegram et envoyez-lui /start</li>
           <li>Sauvegardez la configuration ci-dessus</li>
           <li>Testez avec le bouton "Tester Telegram"</li>
+          <li>Configurez le webhook du bot en envoyant cette commande à @BotFather :<br/>
+            <code className="text-xs bg-background p-1 rounded mt-1 block">/setwebhook https://bqnzofttwsuxcucbyxov.supabase.co/functions/v1/telegram-webhook</code>
+          </li>
         </ol>
         <p className="text-xs text-destructive mt-2">
           Si vous avez "chat not found", c'est que vous n'avez pas fait l'étape 3 !
