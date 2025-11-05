@@ -211,13 +211,17 @@ export const ApiConfiguration = () => {
       )}
 
       <div className="bg-muted/50 p-4 rounded-lg space-y-2">
-        <p className="text-sm font-medium">Configuration Telegram :</p>
-        <ul className="text-sm text-muted-foreground space-y-1 list-disc list-inside">
+        <p className="text-sm font-medium">⚠️ Configuration Telegram (à suivre dans l'ordre) :</p>
+        <ol className="text-sm text-muted-foreground space-y-1 list-decimal list-inside">
           <li>Créez un bot avec @BotFather et obtenez le token</li>
           <li>Obtenez votre Chat ID avec @userinfobot</li>
-          <li>Démarrez votre bot en lui envoyant /start</li>
-          <li>Recevez des alertes et résumés directement sur Telegram</li>
-        </ul>
+          <li className="font-semibold text-foreground">IMPORTANT : Cherchez votre bot sur Telegram et envoyez-lui /start</li>
+          <li>Sauvegardez la configuration ci-dessus</li>
+          <li>Testez avec le bouton "Tester Telegram"</li>
+        </ol>
+        <p className="text-xs text-destructive mt-2">
+          Si vous avez "chat not found", c'est que vous n'avez pas fait l'étape 3 !
+        </p>
       </div>
     </div>
   );
