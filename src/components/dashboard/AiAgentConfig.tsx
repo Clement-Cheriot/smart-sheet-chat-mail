@@ -33,6 +33,8 @@ export const AiAgentConfig = () => {
   const { toast } = useToast();
   const [systemPrompt, setSystemPrompt] = useState(DEFAULT_PROMPT);
   const [originalPrompt, setOriginalPrompt] = useState(DEFAULT_PROMPT);
+  const [categorizationRules, setCategorizationRules] = useState('');
+  const [originalCategorizationRules, setOriginalCategorizationRules] = useState('');
   const [loading, setLoading] = useState(false);
   const [loadingData, setLoadingData] = useState(true);
   const [corrections, setCorrections] = useState<any[]>([]);
@@ -50,7 +52,7 @@ export const AiAgentConfig = () => {
     try {
       const { data, error } = await supabase
         .from('user_api_configs')
-        .select('ai_system_prompt')
+        .select('ai_system_prompt, ai_categorization_rules')
         .eq('user_id', user.id)
         .maybeSingle();
 
@@ -59,6 +61,11 @@ export const AiAgentConfig = () => {
       if (data?.ai_system_prompt) {
         setSystemPrompt(data.ai_system_prompt);
         setOriginalPrompt(data.ai_system_prompt);
+      }
+      
+      if (data?.ai_categorization_rules) {
+        setCategorizationRules(data.ai_categorization_rules);
+        setOriginalCategorizationRules(data.ai_categorization_rules);
       }
     } catch (error: any) {
       console.error('Error loading config:', error);
@@ -96,12 +103,14 @@ export const AiAgentConfig = () => {
         .upsert({
           user_id: user.id,
           ai_system_prompt: systemPrompt,
+          ai_categorization_rules: categorizationRules,
           updated_at: new Date().toISOString(),
         }, { onConflict: 'user_id' });
 
       if (error) throw error;
 
       setOriginalPrompt(systemPrompt);
+      setOriginalCategorizationRules(categorizationRules);
       toast({
         title: "Configuration sauvegardée",
         description: "Le prompt système de l'agent IA a été mis à jour avec succès.",
@@ -122,7 +131,7 @@ export const AiAgentConfig = () => {
     setSystemPrompt(DEFAULT_PROMPT);
   };
 
-  const hasChanges = systemPrompt !== originalPrompt;
+  const hasChanges = systemPrompt !== originalPrompt || categorizationRules !== originalCategorizationRules;
 
   if (loadingData) {
     return (
@@ -170,15 +179,36 @@ export const AiAgentConfig = () => {
           </div>
 
           <div className="space-y-2 mt-4">
+            <label className="text-sm font-medium">Instructions de Catégorisation (Éditable)</label>
+            <Alert>
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription className="text-xs">
+                Ces instructions définissent les labels disponibles et les règles de catégorisation. 
+                Modifiez-les pour ajouter de nouveaux labels ou changer les règles de priorité.
+              </AlertDescription>
+            </Alert>
+            <Textarea
+              value={categorizationRules}
+              onChange={(e) => setCategorizationRules(e.target.value)}
+              rows={12}
+              placeholder="Instructions de catégorisation..."
+              className="font-mono text-sm"
+            />
+            <p className="text-xs text-muted-foreground">
+              {categorizationRules.length} caractères - Ces instructions sont ajoutées au prompt envoyé à l'IA
+            </p>
+          </div>
+
+          <div className="space-y-2 mt-4">
             <label className="text-sm font-medium">Prompt Complet Envoyé à l'IA (lecture seule)</label>
             <Alert>
               <AlertCircle className="h-4 w-4" />
               <AlertDescription className="text-xs">
-                Voici le prompt COMPLET réellement envoyé à l'IA (google/gemini-2.5-flash-lite). Il combine votre prompt système personnalisé + toutes vos règles actives avec leurs descriptions enrichies + les instructions détaillées de catégorisation.
+                Voici le prompt COMPLET réellement envoyé à l'IA (google/gemini-2.5-flash-lite). Il combine votre prompt système personnalisé + toutes vos règles actives avec leurs descriptions enrichies + vos instructions de catégorisation.
               </AlertDescription>
             </Alert>
             <Textarea
-              value={`PROMPT SYSTÈME (configurable ci-dessus):\n${systemPrompt}\n\n---\n\nRÈGLES ACTIVES (générées dynamiquement depuis votre DB):\n📋 BASE DE DONNÉES DES RÈGLES (avec historique des feedbacks):\n\n[Pour chaque règle active]\n1. Label: "[label]" | Priorité: [high/medium/low] | Domaine: [pattern] | Mots-clés: [keywords]\n   📚 Feedbacks utilisateur:\n   [description enrichie par vos corrections]\n\n---\n\nINSTRUCTIONS DE CATÉGORISATION (générées dynamiquement):\n\nINSTRUCTIONS CRITIQUES - TU DOIS APPLIQUER EXACTEMENT 2 LABELS:\n\n1. LABEL DE CATÉGORIE (category_label - OBLIGATOIRE):\n   - Consulte la BASE DE DONNÉES DES RÈGLES ci-dessus\n   - Vérifie si l'email correspond à une règle (domaine, mots-clés, feedbacks)\n   - Les feedbacks les plus récents dans les descriptions sont les plus importants\n   - Si correspondance trouvée: utilise CE label exact et mets matched_label = ce label\n   - Si aucune correspondance: suggère un nouveau label thématique (Secu/*, Admin/*, etc.)\n   - ATTENTION: Vérifie toujours l'adresse expéditeur pour détecter phishing/spam\n\n2. LABEL D'ACTION (action_label - OBLIGATOIRE, toujours préfixer par "Actions/"):\n   - Actions/A répondre - Email légitime nécessitant une réponse\n   - Actions/Automatique - Réponse automatique déjà envoyée ou prévue\n   - Actions/A supprimer - Email à supprimer (spam, phishing, indésirable)\n   - Actions/Revue Manuelle - Email nécessitant vérification manuelle\n   - Actions/Rien à faire - Email informatif légitime, aucune action requise\n\n3. RAISONNEMENT (reasoning - OBLIGATOIRE):\n   - Explique EN FRANÇAIS pourquoi tu as choisi CES DEUX LABELS\n   - Si tu as utilisé une règle, mentionne laquelle et pourquoi\n   - Si tu as utilisé un feedback de la description, mentionne-le\n   - Si c'est du phishing/spam, explique comment tu l'as détecté\n\nRéponse attendue: JSON avec urgency, key_entities, suggested_action, body_summary, reasoning, category_label, action_label, is_phishing, is_spam, matched_label, suggested_label, needs_calendar_action, calendar_details, is_urgent_whatsapp, needs_response, response_type, response_reasoning`}
+              value={`PROMPT SYSTÈME (configurable ci-dessus):\n${systemPrompt}\n\n---\n\nRÈGLES ACTIVES (générées dynamiquement depuis votre DB):\n📋 BASE DE DONNÉES DES RÈGLES (avec historique des feedbacks):\n\n[Pour chaque règle active]\n1. Label: "[label]" | Priorité: [high/medium/low] | Domaine: [pattern] | Mots-clés: [keywords]\n   📚 Feedbacks utilisateur:\n   [description enrichie par vos corrections]\n\n---\n\nINSTRUCTIONS DE CATÉGORISATION (configurables ci-dessus):\n${categorizationRules}\n\n---\n\nFORMAT DE RÉPONSE ATTENDU:\nJSON avec les champs:\n- urgency: number (1-10)\n- key_entities: string[]\n- suggested_action: string\n- body_summary: string\n- reasoning: string (explication EN FRANÇAIS)\n- category_label: string (OBLIGATOIRE - 1 seul label de catégorie)\n- action_label: string (OBLIGATOIRE - 1 seul label d'action commençant par "Actions/")\n- is_phishing: boolean\n- is_spam: boolean\n- matched_label: string | null\n- suggested_label: string | null\n- needs_calendar_action: boolean\n- calendar_details: object | null\n- is_urgent_whatsapp: boolean\n- needs_response: boolean\n- response_type: string | null\n- response_reasoning: string | null`}
               readOnly
               rows={16}
               className="font-mono text-xs bg-muted"

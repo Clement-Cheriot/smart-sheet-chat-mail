@@ -73,6 +73,13 @@ serve(async (req) => {
 
     const existingLabels = Array.from(new Set([...(ruleLabels as string[]), ...historyLabels]));
     
+    // Get user configuration for AI prompts
+    const { data: userConfig } = await supabase
+      .from('user_api_configs')
+      .select('ai_system_prompt, ai_categorization_rules')
+      .eq('user_id', emailData.userId)
+      .maybeSingle();
+    
     const aiAnalysis = await analyzeEmailWithAI(
       emailData.sender,
       emailData.subject,
@@ -80,7 +87,9 @@ serve(async (req) => {
       lovableApiKey,
       existingLabels,
       emailData.userId,
-      supabase
+      supabase,
+      userConfig?.ai_system_prompt,
+      userConfig?.ai_categorization_rules
     );
 
     console.log('AI Analysis:', aiAnalysis);
@@ -384,13 +393,13 @@ serve(async (req) => {
     }
 
     // Get user's Telegram threshold (default to 8)
-    const { data: userConfig } = await supabase
+    const { data: userNotifyConfig } = await supabase
       .from('user_api_configs')
       .select('telegram_threshold')
       .eq('user_id', emailData.userId)
       .maybeSingle();
     
-    const threshold = userConfig?.telegram_threshold || 8;
+    const threshold = userNotifyConfig?.telegram_threshold || 8;
     
     // Check if the category label has notify_urgent in its rule
     const categoryRule = (rules || []).find((r: any) => r.label_to_apply === categoryLabel);
@@ -481,17 +490,12 @@ async function analyzeEmailWithAI(
   apiKey: string,
   existingLabels: string[],
   userId: string,
-  supabase: any
+  supabase: any,
+  customSystemPrompt?: string,
+  customCategorizationRules?: string
 ): Promise<any> {
   try {
-    // Récupérer le prompt système personnalisé
-    const { data: userConfig } = await supabase
-      .from('user_api_configs')
-      .select('ai_system_prompt')
-      .eq('user_id', userId)
-      .maybeSingle();
-    
-    const systemPrompt = userConfig?.ai_system_prompt || 
+    const systemPrompt = customSystemPrompt || 
       `Tu es un assistant de classification d'emails. Tu DOIS appliquer exactement 2 labels :
 1. UN label de CATÉGORIE
 2. UN label d'ACTION
@@ -510,6 +514,32 @@ Analyse l'email reçu et choisis les 2 labels les plus pertinents en te basant s
 4. Feedbacks utilisateur dans les descriptions (éléments les plus récents = plus importants)
 
 Sois précis et cohérent avec les apprentissages passés stockés dans les descriptions.`;
+    
+    const categorizationRules = customCategorizationRules || 
+      `## Instructions de Catégorisation
+
+Tu dois OBLIGATOIREMENT attribuer exactement 2 labels à chaque email :
+1. **UN label de catégorie** (ex: "Travail/Projets", "Personnel/Famille", "Finance/Banque")
+2. **UN label d'action** qui commence par "Actions/" (ex: "Actions/À Répondre", "Actions/À Lire", "Actions/Archiver")
+
+### Labels d'Action Disponibles
+- Actions/A répondre - Email légitime nécessitant une réponse
+- Actions/Automatique - Réponse automatique déjà envoyée ou prévue
+- Actions/A supprimer - Email à supprimer (spam, phishing, indésirable)
+- Actions/Revue Manuelle - Email nécessitant vérification manuelle
+- Actions/Rien à faire - Email informatif légitime, aucune action requise
+
+### Règles de Priorité
+- Score 9-10 : Urgent ET important (facture impayée, deadline proche, problème critique)
+- Score 7-8 : Important mais pas urgent (projet en cours, information importante)
+- Score 5-6 : Normal (emails quotidiens, confirmations)
+- Score 3-4 : Faible priorité (newsletters, promotions)
+- Score 1-2 : Très faible (spam, marketing non sollicité)
+
+### Validation
+- Si aucune catégorie ne correspond → "Needs Manual Review"
+- Si aucune action ne correspond → "Actions/Revue Manuelle"
+- TOUJOURS retourner exactement 2 labels`;
     
     // Récupérer TOUTES les règles actives avec leurs descriptions enrichies
     const { data: rules } = await supabase
@@ -545,28 +575,7 @@ De: ${sender}
 Sujet: ${subject}
 Corps: ${body.substring(0, 1000)}${labelsContext}${rulesContext}
 
-INSTRUCTIONS CRITIQUES - TU DOIS APPLIQUER EXACTEMENT 2 LABELS:
-
-1. LABEL DE CATÉGORIE (category_label - OBLIGATOIRE):
-   - Consulte la BASE DE DONNÉES DES RÈGLES ci-dessus
-   - Vérifie si l'email correspond à une règle (domaine, mots-clés, feedbacks)
-   - Les feedbacks les plus récents dans les descriptions sont les plus importants
-   - Si correspondance trouvée: utilise CE label exact et mets matched_label = ce label
-   - Si aucune correspondance: suggère un nouveau label thématique (Secu/*, Admin/*, Commande/*, etc.)
-   - ATTENTION: Vérifie toujours l'adresse expéditeur pour détecter phishing/spam
-
-2. LABEL D'ACTION (action_label - OBLIGATOIRE, toujours préfixer par "Actions/"):
-   - Actions/A répondre - Email légitime nécessitant une réponse
-   - Actions/Automatique - Réponse automatique déjà envoyée ou prévue
-   - Actions/A supprimer - Email à supprimer (spam, phishing, indésirable)
-   - Actions/Revue Manuelle - Email nécessitant vérification manuelle
-   - Actions/Rien à faire - Email informatif légitime, aucune action requise
-
-3. RAISONNEMENT (reasoning - OBLIGATOIRE):
-   - Explique EN FRANÇAIS pourquoi tu as choisi CES DEUX LABELS
-   - Si tu as utilisé une règle, mentionne laquelle et pourquoi
-   - Si tu as utilisé un feedback de la description, mentionne-le
-   - Si c'est du phishing/spam, explique comment tu l'as détecté
+${categorizationRules}
 
 Fournis une réponse JSON avec:
 1. urgency: échelle de 1 à 10
