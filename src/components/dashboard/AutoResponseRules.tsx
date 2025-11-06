@@ -87,7 +87,7 @@ export const AutoResponseRules = () => {
       const ruleData = {
         name: formData.name.trim(),
         template: formData.template.trim(),
-        signature_id: formData.signature_id || null,
+        signature_id: formData.signature_id === "none" ? null : formData.signature_id || null,
         delay_minutes: parseInt(formData.delay_minutes) || 0,
         conditions
       };
@@ -138,7 +138,7 @@ export const AutoResponseRules = () => {
   };
 
   const resetForm = () => {
-    setFormData({ name: "", template: "", signature_id: "", conditions: "", delay_minutes: "0" });
+    setFormData({ name: "", template: "", signature_id: "none", conditions: "", delay_minutes: "0" });
     setEditingRule(null);
   };
 
@@ -147,7 +147,7 @@ export const AutoResponseRules = () => {
     setFormData({
       name: rule.name,
       template: rule.template,
-      signature_id: rule.signature_id || "",
+      signature_id: rule.signature_id || "none",
       conditions: rule.conditions ? JSON.stringify(rule.conditions, null, 2) : "",
       delay_minutes: rule.delay_minutes.toString()
     });
@@ -182,7 +182,7 @@ export const AutoResponseRules = () => {
                     <SelectValue placeholder="Sélectionner une signature" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">Aucune</SelectItem>
+                    <SelectItem value="none">Aucune</SelectItem>
                     {signatures.map((sig) => (
                       <SelectItem key={sig.id} value={sig.id}>{sig.name}</SelectItem>
                     ))}

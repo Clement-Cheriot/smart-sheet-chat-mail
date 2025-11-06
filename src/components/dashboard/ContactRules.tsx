@@ -80,8 +80,8 @@ export const ContactRules = () => {
       const contactData = {
         email: formData.email.trim().toLowerCase(),
         name: formData.name?.trim() || null,
-        preferred_signature_id: formData.preferred_signature_id || null,
-        preferred_tone: formData.preferred_tone || null,
+        preferred_signature_id: formData.preferred_signature_id === "none" ? null : formData.preferred_signature_id || null,
+        preferred_tone: formData.preferred_tone === "none" ? null : formData.preferred_tone || null,
         notes: formData.notes?.trim() || null
       };
 
@@ -131,7 +131,7 @@ export const ContactRules = () => {
   };
 
   const resetForm = () => {
-    setFormData({ email: "", name: "", preferred_signature_id: "", preferred_tone: "", notes: "" });
+    setFormData({ email: "", name: "", preferred_signature_id: "none", preferred_tone: "none", notes: "" });
     setEditingContact(null);
   };
 
@@ -140,8 +140,8 @@ export const ContactRules = () => {
     setFormData({
       email: contact.email,
       name: contact.name || "",
-      preferred_signature_id: contact.preferred_signature_id || "",
-      preferred_tone: contact.preferred_tone || "",
+      preferred_signature_id: contact.preferred_signature_id || "none",
+      preferred_tone: contact.preferred_tone || "none",
       notes: contact.notes || ""
     });
     setIsDialogOpen(true);
@@ -175,7 +175,7 @@ export const ContactRules = () => {
                     <SelectValue placeholder="Sélectionner une signature" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">Aucune</SelectItem>
+                    <SelectItem value="none">Aucune</SelectItem>
                     {signatures.map((sig) => (
                       <SelectItem key={sig.id} value={sig.id}>{sig.name}</SelectItem>
                     ))}
@@ -189,7 +189,7 @@ export const ContactRules = () => {
                     <SelectValue placeholder="Sélectionner un ton" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">Aucun</SelectItem>
+                    <SelectItem value="none">Aucun</SelectItem>
                     <SelectItem value="formel">Formel</SelectItem>
                     <SelectItem value="casual">Casual</SelectItem>
                   </SelectContent>

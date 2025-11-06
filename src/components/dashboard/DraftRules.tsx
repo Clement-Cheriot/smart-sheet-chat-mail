@@ -86,7 +86,7 @@ export const DraftRules = () => {
       const ruleData = {
         name: formData.name.trim(),
         template: formData.template.trim(),
-        signature_id: formData.signature_id || null,
+        signature_id: formData.signature_id === "none" ? null : formData.signature_id || null,
         conditions
       };
 
@@ -136,7 +136,7 @@ export const DraftRules = () => {
   };
 
   const resetForm = () => {
-    setFormData({ name: "", template: "", signature_id: "", conditions: "" });
+    setFormData({ name: "", template: "", signature_id: "none", conditions: "" });
     setEditingRule(null);
   };
 
@@ -145,7 +145,7 @@ export const DraftRules = () => {
     setFormData({
       name: rule.name,
       template: rule.template,
-      signature_id: rule.signature_id || "",
+      signature_id: rule.signature_id || "none",
       conditions: rule.conditions ? JSON.stringify(rule.conditions, null, 2) : ""
     });
     setIsDialogOpen(true);
@@ -179,7 +179,7 @@ export const DraftRules = () => {
                     <SelectValue placeholder="Sélectionner une signature" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">Aucune</SelectItem>
+                    <SelectItem value="none">Aucune</SelectItem>
                     {signatures.map((sig) => (
                       <SelectItem key={sig.id} value={sig.id}>{sig.name}</SelectItem>
                     ))}
