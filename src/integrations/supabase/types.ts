@@ -44,23 +44,192 @@ export type Database = {
         }
         Relationships: []
       }
+      auto_response_rules: {
+        Row: {
+          conditions: Json | null
+          created_at: string | null
+          delay_minutes: number | null
+          id: string
+          name: string
+          signature_id: string | null
+          template: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          conditions?: Json | null
+          created_at?: string | null
+          delay_minutes?: number | null
+          id?: string
+          name: string
+          signature_id?: string | null
+          template: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          conditions?: Json | null
+          created_at?: string | null
+          delay_minutes?: number | null
+          id?: string
+          name?: string
+          signature_id?: string | null
+          template?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "auto_response_rules_signature_id_fkey"
+            columns: ["signature_id"]
+            isOneToOne: false
+            referencedRelation: "signature_rules"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      calendar_rules: {
+        Row: {
+          action_type: string | null
+          conditions: Json | null
+          created_at: string | null
+          exclude_noreply: boolean | null
+          id: string
+          name: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          action_type?: string | null
+          conditions?: Json | null
+          created_at?: string | null
+          exclude_noreply?: boolean | null
+          id?: string
+          name: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          action_type?: string | null
+          conditions?: Json | null
+          created_at?: string | null
+          exclude_noreply?: boolean | null
+          id?: string
+          name?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      contact_rules: {
+        Row: {
+          created_at: string | null
+          email: string
+          id: string
+          name: string | null
+          notes: string | null
+          preferred_signature_id: string | null
+          preferred_tone: string | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          email: string
+          id?: string
+          name?: string | null
+          notes?: string | null
+          preferred_signature_id?: string | null
+          preferred_tone?: string | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          email?: string
+          id?: string
+          name?: string | null
+          notes?: string | null
+          preferred_signature_id?: string | null
+          preferred_tone?: string | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contact_rules_preferred_signature_id_fkey"
+            columns: ["preferred_signature_id"]
+            isOneToOne: false
+            referencedRelation: "signature_rules"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      draft_rules: {
+        Row: {
+          conditions: Json | null
+          created_at: string | null
+          id: string
+          name: string
+          signature_id: string | null
+          template: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          conditions?: Json | null
+          created_at?: string | null
+          id?: string
+          name: string
+          signature_id?: string | null
+          template: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          conditions?: Json | null
+          created_at?: string | null
+          id?: string
+          name?: string
+          signature_id?: string | null
+          template?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "draft_rules_signature_id_fkey"
+            columns: ["signature_id"]
+            isOneToOne: false
+            referencedRelation: "signature_rules"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       email_history: {
         Row: {
           actions_taken: Json | null
           ai_analysis: Json | null
           ai_reasoning: string | null
           applied_label: string[] | null
+          auto_response_content: string | null
           body_summary: string | null
+          calendar_details: Json | null
+          confidence: number | null
           created_at: string
+          draft_content: string | null
           draft_created: boolean | null
           draft_id: string | null
           gmail_message_id: string
           id: string
           label_validation_notes: string | null
           label_validation_status: string | null
+          needs_calendar_action: boolean | null
+          needs_response: boolean | null
           priority_score: number | null
           processed_at: string
           received_at: string
+          rule_reinforcement: Json | null
           rule_reinforcement_status: string | null
           rule_reinforcement_suggestion: string | null
           sender: string
@@ -75,17 +244,24 @@ export type Database = {
           ai_analysis?: Json | null
           ai_reasoning?: string | null
           applied_label?: string[] | null
+          auto_response_content?: string | null
           body_summary?: string | null
+          calendar_details?: Json | null
+          confidence?: number | null
           created_at?: string
+          draft_content?: string | null
           draft_created?: boolean | null
           draft_id?: string | null
           gmail_message_id: string
           id?: string
           label_validation_notes?: string | null
           label_validation_status?: string | null
+          needs_calendar_action?: boolean | null
+          needs_response?: boolean | null
           priority_score?: number | null
           processed_at?: string
           received_at: string
+          rule_reinforcement?: Json | null
           rule_reinforcement_status?: string | null
           rule_reinforcement_suggestion?: string | null
           sender: string
@@ -100,17 +276,24 @@ export type Database = {
           ai_analysis?: Json | null
           ai_reasoning?: string | null
           applied_label?: string[] | null
+          auto_response_content?: string | null
           body_summary?: string | null
+          calendar_details?: Json | null
+          confidence?: number | null
           created_at?: string
+          draft_content?: string | null
           draft_created?: boolean | null
           draft_id?: string | null
           gmail_message_id?: string
           id?: string
           label_validation_notes?: string | null
           label_validation_status?: string | null
+          needs_calendar_action?: boolean | null
+          needs_response?: boolean | null
           priority_score?: number | null
           processed_at?: string
           received_at?: string
+          rule_reinforcement?: Json | null
           rule_reinforcement_status?: string | null
           rule_reinforcement_suggestion?: string | null
           sender?: string
@@ -293,6 +476,36 @@ export type Database = {
           full_name?: string | null
           id?: string
           updated_at?: string
+        }
+        Relationships: []
+      }
+      signature_rules: {
+        Row: {
+          conditions: Json | null
+          content: string
+          created_at: string | null
+          id: string
+          name: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          conditions?: Json | null
+          content: string
+          created_at?: string | null
+          id?: string
+          name: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          conditions?: Json | null
+          content?: string
+          created_at?: string | null
+          id?: string
+          name?: string
+          updated_at?: string | null
+          user_id?: string
         }
         Relationships: []
       }
