@@ -235,16 +235,18 @@ export const ApiConfiguration = () => {
           </div>
           
           <div>
-            <p className="text-sm font-semibold text-foreground mb-1">5. Activer les commandes (optionnel) :</p>
+            <p className="text-sm font-semibold text-foreground mb-1">5. Configurer le webhook (pour les commandes) :</p>
             <ul className="text-sm text-muted-foreground space-y-1 ml-4">
-              <li>• Pour recevoir des résumés via Telegram, configurez le webhook :</li>
-              <li>• Allez sur @BotFather et envoyez :
-                <code className="text-xs bg-background p-1 rounded mt-1 block">/setwebhook</code>
+              <li>• Pour recevoir des résumés via Telegram, vous devez configurer le webhook</li>
+              <li>• <span className="font-semibold text-foreground">BotFather ne gère PAS les webhooks</span> - utilisez l'API directement :</li>
+              <li>• Remplacez &lt;VOTRE_TOKEN&gt; par votre token dans cette URL et ouvrez-la dans votre navigateur :
+                <code className="text-xs bg-background p-1 rounded mt-1 block break-all">
+                  https://api.telegram.org/bot&lt;VOTRE_TOKEN&gt;/setWebhook?url=https://bqnzofttwsuxcucbyxov.supabase.co/functions/v1/telegram-webhook
+                </code>
               </li>
-              <li>• Puis collez cette URL :
-                <code className="text-xs bg-background p-1 rounded mt-1 block">https://bqnzofttwsuxcucbyxov.supabase.co/functions/v1/telegram-webhook</code>
-              </li>
-              <li>• Cela vous permettra d'envoyer "résumé" ou "/summary" à votre bot pour recevoir un résumé</li>
+              <li>• Vous devez voir : <code className="text-xs bg-background p-1 rounded">{`{"ok":true,"result":true}`}</code></li>
+              <li>• Une fois configuré, envoyez "résumé" ou "/summary" à votre bot pour recevoir un résumé audio des dernières 24h</li>
+              <li>• Commandes disponibles : /summary, /help, résumé, aide</li>
             </ul>
           </div>
         </div>
