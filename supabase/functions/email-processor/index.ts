@@ -194,7 +194,7 @@ serve(async (req) => {
       actionLabel = actionMap[aiAnalysis.suggested_action] || 'Actions/Revue Manuelle';
     }
 
-    // Build final labels: category + action
+    // Build final labels: category + action (VALIDATION: must have exactly 1 category + 1 action)
     appliedLabels = [];
     
     // Add category label (from AI or rule fallback)
@@ -207,11 +207,41 @@ serve(async (req) => {
       appliedLabels.push(actionLabel);
     }
     
-    // Fallback if no labels at all
-    if (appliedLabels.length === 0) {
+    // CRITICAL VALIDATION: Must have at least 1 category and 1 action
+    const hasCategory = appliedLabels.some(label => !label.startsWith('Actions/'));
+    const hasAction = appliedLabels.some(label => label.startsWith('Actions/'));
+    
+    // Fix: If missing category, add a default one
+    if (!hasCategory) {
+      console.warn('Missing category label, adding default "Needs Manual Review"');
+      appliedLabels.unshift('Needs Manual Review');
+      categoryLabel = 'Needs Manual Review';
+    }
+    
+    // Fix: If missing action, add a default one
+    if (!hasAction) {
+      console.warn('Missing action label, adding default "Actions/Revue Manuelle"');
       appliedLabels.push('Actions/Revue Manuelle');
       actionLabel = 'Actions/Revue Manuelle';
     }
+    
+    // Fix: If we have multiple action labels, keep only the first one
+    const actionLabels = appliedLabels.filter(label => label.startsWith('Actions/'));
+    if (actionLabels.length > 1) {
+      console.warn(`Multiple action labels detected (${actionLabels.join(', ')}), keeping only the first one`);
+      appliedLabels = appliedLabels.filter(label => !label.startsWith('Actions/') || label === actionLabels[0]);
+      actionLabel = actionLabels[0];
+    }
+    
+    // Fix: If we have multiple category labels, keep only the first one
+    const categoryLabels = appliedLabels.filter(label => !label.startsWith('Actions/'));
+    if (categoryLabels.length > 1) {
+      console.warn(`Multiple category labels detected (${categoryLabels.join(', ')}), keeping only the first one`);
+      appliedLabels = [categoryLabels[0], ...appliedLabels.filter(label => label.startsWith('Actions/'))];
+      categoryLabel = categoryLabels[0];
+    }
+    
+    console.log('Final labels (validated):', { category: categoryLabel, action: actionLabel, all: appliedLabels });
 
     // Determine actions taken
     const actionsTaken = [{ type: 'label', value: appliedLabels }];
@@ -362,9 +392,24 @@ serve(async (req) => {
     
     const threshold = userConfig?.telegram_threshold || 8;
     
-    // Send Telegram notification if priority exceeds threshold or urgent rule matches
-    if (priorityScore >= threshold || shouldNotifyUrgent || aiAnalysis.is_urgent_whatsapp) {
-      console.log('Sending Telegram notification');
+    // Check if the category label has notify_urgent in its rule
+    const categoryRule = (rules || []).find((r: any) => r.label_to_apply === categoryLabel);
+    const shouldNotifyForCategoryLabel = categoryRule?.notify_urgent || false;
+    
+    // Send Telegram notification if:
+    // 1. Priority exceeds threshold
+    // 2. A matched rule has notify_urgent flag
+    // 3. The category label's rule has notify_urgent flag
+    // 4. AI marked it as urgent for WhatsApp
+    if (priorityScore >= threshold || shouldNotifyUrgent || shouldNotifyForCategoryLabel || aiAnalysis.is_urgent_whatsapp) {
+      console.log('Sending Telegram notification', { 
+        reason: {
+          priorityExceedsThreshold: priorityScore >= threshold,
+          ruleNotifyUrgent: shouldNotifyUrgent,
+          categoryLabelNotifyUrgent: shouldNotifyForCategoryLabel,
+          aiUrgentWhatsapp: aiAnalysis.is_urgent_whatsapp
+        }
+      });
       
       // Build suggested action message
       let actionText = 'Consulter le mail';
@@ -451,7 +496,20 @@ async function analyzeEmailWithAI(
 1. UN label de CATÉGORIE
 2. UN label d'ACTION
 
-Analyse l'email reçu et choisis les 2 labels les plus pertinents. Sois précis et cohérent avec les apprentissages passés.`;
+Tu as accès à la database complète des règles avec :
+- Label à appliquer
+- Priorité
+- Domaines expéditeurs
+- Mots-clés
+- Description (contient l'historique des feedbacks utilisateur)
+
+Analyse l'email reçu et choisis les 2 labels les plus pertinents en te basant sur :
+1. Correspondance domaine expéditeur
+2. Présence mots-clés
+3. Priorité du label
+4. Feedbacks utilisateur dans les descriptions (éléments les plus récents = plus importants)
+
+Sois précis et cohérent avec les apprentissages passés stockés dans les descriptions.`;
     
     // Récupérer TOUTES les règles actives avec leurs descriptions enrichies
     const { data: rules } = await supabase

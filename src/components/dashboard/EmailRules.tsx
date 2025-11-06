@@ -21,6 +21,7 @@ interface Rule {
   notify_urgent: boolean;
   exclude_newsletters: boolean;
   exclude_marketing: boolean;
+  description?: string;
   ruleType?: 'label' | 'draft' | 'auto-reply' | 'notification';
   user_id?: string;
 }
@@ -533,6 +534,12 @@ export const EmailRules = () => {
                       rule.exclude_marketing && 'Marketing'
                     ].filter(Boolean).join(', ')}
                   </p>
+                )}
+                {rule.description && rule.description.trim() && (
+                  <div className="mt-2 p-2 bg-muted/50 rounded text-xs">
+                    <p className="font-medium mb-1">📚 Description enrichie (auto-apprentissage):</p>
+                    <p className="text-muted-foreground whitespace-pre-wrap">{rule.description}</p>
+                  </div>
                 )}
               </div>
               <div className="flex gap-2">

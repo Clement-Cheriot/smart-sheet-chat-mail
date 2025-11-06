@@ -13,7 +13,20 @@ const DEFAULT_PROMPT = `Tu es un assistant de classification d'emails. Tu DOIS a
 1. UN label de CATÉGORIE
 2. UN label d'ACTION
 
-Analyse l'email reçu et choisis les 2 labels les plus pertinents. Sois précis et cohérent avec les apprentissages passés.`;
+Tu as accès à la database complète des règles avec :
+- Label à appliquer
+- Priorité
+- Domaines expéditeurs
+- Mots-clés
+- Description (contient l'historique des feedbacks utilisateur)
+
+Analyse l'email reçu et choisis les 2 labels les plus pertinents en te basant sur :
+1. Correspondance domaine expéditeur
+2. Présence mots-clés
+3. Priorité du label
+4. Feedbacks utilisateur dans les descriptions (éléments les plus récents = plus importants)
+
+Sois précis et cohérent avec les apprentissages passés stockés dans les descriptions.`;
 
 export const AiAgentConfig = () => {
   const { user } = useAuth();
@@ -143,7 +156,7 @@ export const AiAgentConfig = () => {
           </Alert>
 
           <div className="space-y-2">
-            <label className="text-sm font-medium">Prompt Système</label>
+            <label className="text-sm font-medium">Prompt Système Utilisateur</label>
             <Textarea
               value={systemPrompt}
               onChange={(e) => setSystemPrompt(e.target.value)}
@@ -152,8 +165,24 @@ export const AiAgentConfig = () => {
               className="font-mono text-sm"
             />
             <p className="text-xs text-muted-foreground">
-              {systemPrompt.length} caractères
+              {systemPrompt.length} caractères - Ce prompt est envoyé à l'IA en tant qu'instructions système
             </p>
+          </div>
+
+          <div className="space-y-2 mt-4">
+            <label className="text-sm font-medium">Prompt Complet Envoyé à l'IA (lecture seule)</label>
+            <Alert>
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription className="text-xs">
+                Ce prompt complet est généré automatiquement et inclut : votre prompt système + la liste des règles avec leurs descriptions enrichies + les instructions de catégorisation.
+              </AlertDescription>
+            </Alert>
+            <Textarea
+              value={`PROMPT SYSTÈME (configurable ci-dessus):\n${systemPrompt}\n\n---\n\nINSTRUCTIONS AUTOMATIQUES (générées dynamiquement):\n- Base de données des règles avec descriptions enrichies\n- Labels existants\n- Instructions de catégorisation (1 catégorie + 1 action)\n- Détection phishing/spam\n- Analyse urgence et actions suggérées`}
+              readOnly
+              rows={12}
+              className="font-mono text-xs bg-muted"
+            />
           </div>
 
           <div className="flex gap-2">
