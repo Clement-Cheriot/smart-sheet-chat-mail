@@ -58,10 +58,18 @@ export const ContactRules = () => {
   };
 
   const handleSubmit = async () => {
+    if (!formData.email) {
+      toast({ title: "Erreur", description: "L'email est requis", variant: "destructive" });
+      return;
+    }
+
     const preferred_signature_id = formData.preferred_signature_id || null;
     const preferred_tone = formData.preferred_tone || null;
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
+    if (!user) {
+      toast({ title: "Erreur", description: "Utilisateur non connecté", variant: "destructive" });
+      return;
+    }
     
     if (editingContact) {
       const { error } = await supabase
@@ -76,7 +84,8 @@ export const ContactRules = () => {
         .eq("id", editingContact.id);
 
       if (error) {
-        toast({ title: "Erreur", description: "Impossible de modifier le contact", variant: "destructive" });
+        console.error("Erreur mise à jour:", error);
+        toast({ title: "Erreur", description: error.message, variant: "destructive" });
       } else {
         toast({ title: "Succès", description: "Contact modifié" });
         fetchContacts();
@@ -96,7 +105,8 @@ export const ContactRules = () => {
         }]);
 
       if (error) {
-        toast({ title: "Erreur", description: "Impossible de créer le contact", variant: "destructive" });
+        console.error("Erreur insertion:", error);
+        toast({ title: "Erreur", description: error.message, variant: "destructive" });
       } else {
         toast({ title: "Succès", description: "Contact créé" });
         fetchContacts();

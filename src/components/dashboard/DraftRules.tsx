@@ -57,38 +57,53 @@ export const DraftRules = () => {
   };
 
   const handleSubmit = async () => {
-    const conditions = formData.conditions ? JSON.parse(formData.conditions) : null;
-    const signature_id = formData.signature_id || null;
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
-    
-    if (editingRule) {
-      const { error } = await supabase
-        .from("draft_rules")
-        .update({ name: formData.name, template: formData.template, signature_id, conditions })
-        .eq("id", editingRule.id);
+    if (!formData.name || !formData.template) {
+      toast({ title: "Erreur", description: "Nom et template sont requis", variant: "destructive" });
+      return;
+    }
 
-      if (error) {
-        toast({ title: "Erreur", description: "Impossible de modifier la règle", variant: "destructive" });
-      } else {
-        toast({ title: "Succès", description: "Règle modifiée" });
-        fetchRules();
-        setIsDialogOpen(false);
-        resetForm();
+    try {
+      const conditions = formData.conditions ? JSON.parse(formData.conditions) : null;
+      const signature_id = formData.signature_id || null;
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        toast({ title: "Erreur", description: "Utilisateur non connecté", variant: "destructive" });
+        return;
       }
-    } else {
-      const { error } = await supabase
-        .from("draft_rules")
-        .insert([{ name: formData.name, template: formData.template, signature_id, conditions, user_id: user.id }]);
+      
+      if (editingRule) {
+        const { error } = await supabase
+          .from("draft_rules")
+          .update({ name: formData.name, template: formData.template, signature_id, conditions })
+          .eq("id", editingRule.id);
 
-      if (error) {
-        toast({ title: "Erreur", description: "Impossible de créer la règle", variant: "destructive" });
+        if (error) {
+          console.error("Erreur mise à jour:", error);
+          toast({ title: "Erreur", description: error.message, variant: "destructive" });
+        } else {
+          toast({ title: "Succès", description: "Règle modifiée" });
+          fetchRules();
+          setIsDialogOpen(false);
+          resetForm();
+        }
       } else {
-        toast({ title: "Succès", description: "Règle créée" });
-        fetchRules();
-        setIsDialogOpen(false);
-        resetForm();
+        const { error } = await supabase
+          .from("draft_rules")
+          .insert([{ name: formData.name, template: formData.template, signature_id, conditions, user_id: user.id }]);
+
+        if (error) {
+          console.error("Erreur insertion:", error);
+          toast({ title: "Erreur", description: error.message, variant: "destructive" });
+        } else {
+          toast({ title: "Succès", description: "Règle créée" });
+          fetchRules();
+          setIsDialogOpen(false);
+          resetForm();
+        }
       }
+    } catch (e) {
+      console.error("Erreur:", e);
+      toast({ title: "Erreur", description: "Erreur lors de la validation des données", variant: "destructive" });
     }
   };
 
