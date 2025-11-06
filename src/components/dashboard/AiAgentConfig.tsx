@@ -9,24 +9,61 @@ import { useToast } from '@/hooks/use-toast';
 import { Bot, Save, RotateCcw, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 
-const DEFAULT_PROMPT = `Tu es un assistant de classification d'emails. Tu DOIS appliquer exactement 2 labels :
-1. UN label de CATÉGORIE
-2. UN label d'ACTION
+const DEFAULT_PROMPT = `Tu analyses les emails et génères un JSON structuré avec toutes les actions nécessaires.
 
-Tu as accès à la database complète des règles avec :
-- Label à appliquer
-- Priorité
-- Domaines expéditeurs
-- Mots-clés
-- Description (contient l'historique des feedbacks utilisateur)
+DONNÉES DISPONIBLES :
+- Règles Labels (label_rules) : nom, priorité, domaines, mots-clés, description
+- Règles Signatures (signature_rules) : nom, contenu, conditions
+- Règles Brouillons (draft_rules) : nom, template, signature_id, conditions
+- Règles Réponses Auto (auto_response_rules) : nom, template, signature_id, conditions, délai
+- Règles Calendrier (calendar_rules) : nom, type d'action, conditions, exclusion no-reply
+- Règles Contacts (contact_rules) : email, nom, signature préférée, ton préféré
 
-Analyse l'email reçu et choisis les 2 labels les plus pertinents en te basant sur :
-1. Correspondance domaine expéditeur
-2. Présence mots-clés
-3. Priorité du label
-4. Feedbacks utilisateur dans les descriptions (éléments les plus récents = plus importants)
+TON RÔLE :
+1. Calculer urgency (1-10) et confidence (0-100%)
+2. Appliquer minimum 1 category_label + 1 action_label
+3. Identifier la règle utilisée (matched_label)
+4. Si aucune règle : proposer suggested_label
+5. Générer reasoning détaillé en français
+6. Si "Actions/A répondre" : générer draft_content en utilisant draft_rules + signature_rules + contact_rules
+7. Si règle auto_response applicable : générer auto_response_content
+8. Si urgency ≥ 8 : is_urgent_whatsapp = true
+9. Si mots-clés calendrier détectés ("réunion", "meeting", "rdv") ET sender sans "no-reply" : needs_calendar_action = true + calendar_details
+10. Si label appliqué mais nouveaux mots-clés/domaines détectés : remplir rule_reinforcement
 
-Sois précis et cohérent avec les apprentissages passés stockés dans les descriptions.`;
+LABELS ACTIONS OBLIGATOIRES :
+- Actions/A répondre : Email nécessitant réponse → needs_response=true + draft_content obligatoire
+- Actions/Automatique : Réponse auto envoyée/prévue → auto_response_content
+- Actions/A supprimer : Spam/phishing/indésirable
+- Actions/Revue Manuelle : Incertitude (confidence < 70%)
+- Actions/Rien à faire : Email informatif légitime
+
+FORMAT DE SORTIE JSON :
+{
+  "urgency": number,
+  "confidence": number,
+  "reasoning": string,
+  "category_label": string,
+  "action_label": string,
+  "applied_labels": string[],
+  "matched_label": string | null,
+  "suggested_label": string | null,
+  "needs_response": boolean,
+  "draft_content": string | null,
+  "auto_response_content": string | null,
+  "is_urgent_whatsapp": boolean,
+  "needs_calendar_action": boolean,
+  "calendar_details": {
+    "date": string,
+    "title": string,
+    "description": string
+  } | null,
+  "rule_reinforcement": {
+    "label": string,
+    "add_keywords": string[],
+    "add_domains": string[]
+  } | null
+}`;
 
 export const AiAgentConfig = () => {
   const { user } = useAuth();
@@ -208,7 +245,7 @@ export const AiAgentConfig = () => {
               </AlertDescription>
             </Alert>
             <Textarea
-              value={`PROMPT SYSTÈME (configurable ci-dessus):\n${systemPrompt}\n\n---\n\nRÈGLES ACTIVES (générées dynamiquement depuis votre DB):\n📋 BASE DE DONNÉES DES RÈGLES (avec historique des feedbacks):\n\n[Pour chaque règle active]\n1. Label: "[label]" | Priorité: [high/medium/low] | Domaine: [pattern] | Mots-clés: [keywords]\n   📚 Feedbacks utilisateur:\n   [description enrichie par vos corrections]\n\n---\n\nINSTRUCTIONS DE CATÉGORISATION (configurables ci-dessus):\n${categorizationRules}\n\n---\n\nFORMAT DE RÉPONSE ATTENDU:\nJSON avec les champs:\n- urgency: number (1-10)\n- key_entities: string[]\n- suggested_action: string\n- body_summary: string\n- reasoning: string (explication EN FRANÇAIS)\n- category_label: string (OBLIGATOIRE - 1 seul label de catégorie)\n- action_label: string (OBLIGATOIRE - 1 seul label d'action commençant par "Actions/")\n- is_phishing: boolean\n- is_spam: boolean\n- matched_label: string | null\n- suggested_label: string | null\n- needs_calendar_action: boolean\n- calendar_details: object | null\n- is_urgent_whatsapp: boolean\n- needs_response: boolean\n- response_type: string | null\n- response_reasoning: string | null`}
+              value={`PROMPT SYSTÈME (configurable ci-dessus):\n${systemPrompt}\n\n---\n\nRÈGLES ACTIVES (générées dynamiquement depuis votre DB):\n📋 BASE DE DONNÉES DES RÈGLES (avec historique des feedbacks):\n\n[Pour chaque règle active]\n1. Label: "[label]" | Priorité: [high/medium/low] | Domaine: [pattern] | Mots-clés: [keywords]\n   📚 Feedbacks utilisateur:\n   [description enrichie par vos corrections]\n\n📋 RÈGLES SIGNATURES:\n[Pour chaque signature]\nNom: [name] | Contenu: [content] | Conditions: [conditions]\n\n📋 RÈGLES BROUILLONS:\n[Pour chaque draft_rule]\nNom: [name] | Template: [template] | Signature ID: [signature_id] | Conditions: [conditions]\n\n📋 RÈGLES RÉPONSES AUTO:\n[Pour chaque auto_response_rule]\nNom: [name] | Template: [template] | Signature ID: [signature_id] | Délai: [delay_minutes]min | Conditions: [conditions]\n\n📋 RÈGLES CALENDRIER:\n[Pour chaque calendar_rule]\nNom: [name] | Action: [action_type] | Conditions: [conditions] | Exclure no-reply: [exclude_noreply]\n\n📋 RÈGLES CONTACTS:\n[Pour chaque contact_rule]\nEmail: [email] | Nom: [name] | Signature préférée: [preferred_signature_id] | Ton: [preferred_tone] | Notes: [notes]\n\n---\n\nINSTRUCTIONS DE CATÉGORISATION (configurables ci-dessus):\n${categorizationRules}\n\n---\n\nFORMAT DE RÉPONSE ATTENDU:\nJSON avec les champs:\n- urgency: number (1-10)\n- confidence: number (0-100)\n- reasoning: string (explication EN FRANÇAIS)\n- category_label: string (OBLIGATOIRE)\n- action_label: string (OBLIGATOIRE - commence par "Actions/")\n- applied_labels: string[] (tous les labels appliqués)\n- matched_label: string | null (règle utilisée)\n- suggested_label: string | null (si aucune règle)\n- needs_response: boolean\n- draft_content: string | null (si needs_response=true)\n- auto_response_content: string | null (si applicable)\n- is_urgent_whatsapp: boolean (true si urgency >= 8)\n- needs_calendar_action: boolean\n- calendar_details: {date, title, description} | null\n- rule_reinforcement: {label, add_keywords[], add_domains[]} | null`}
               readOnly
               rows={16}
               className="font-mono text-xs bg-muted"

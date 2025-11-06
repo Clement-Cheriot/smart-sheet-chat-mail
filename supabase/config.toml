@@ -3,6 +3,9 @@ project_id = "bqnzofttwsuxcucbyxov"
 [functions.email-processor]
 verify_jwt = false
 
+[functions.ai-feedback]
+verify_jwt = true
+
 [functions.whatsapp-sender]
 verify_jwt = false
 

@@ -8,15 +8,23 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import { toast } from '@/hooks/use-toast';
 import { formatDistanceToNow } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { Mail, Tag, Clock, ChevronDown, Check, X, Lightbulb, Brain, Calendar, MessageSquare, Trash, RefreshCw, MoreVertical } from 'lucide-react';
+import { Mail, Tag, Clock, ChevronDown, Check, X, Lightbulb, Brain, Calendar, MessageSquare, Trash, RefreshCw, MoreVertical, Info, Edit } from 'lucide-react';
 import { EmailActionsDialog } from './EmailActionsDialog';
+import { EmailDetailsDialog } from './EmailDetailsDialog';
+import { ChangeLabelDialog } from './ChangeLabelDialog';
+import { 
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 
 interface EmailRecord {
   id: string;
   sender: string;
   subject: string;
   received_at: string;
-  applied_label: string;
+  applied_label: string | string[];
   priority_score: number;
   draft_created: boolean;
   draft_id: string | null;
@@ -29,6 +37,13 @@ interface EmailRecord {
   rule_reinforcement_status: string;
   telegram_notified: boolean;
   ai_analysis: any;
+  confidence?: number;
+  draft_content?: string;
+  auto_response_content?: string;
+  rule_reinforcement?: any;
+  calendar_details?: any;
+  needs_response?: boolean;
+  needs_calendar_action?: boolean;
 }
 
 export const EmailHistory = () => {
@@ -37,6 +52,8 @@ export const EmailHistory = () => {
   const [syncing, setSyncing] = useState(false);
   const [selectedEmail, setSelectedEmail] = useState<EmailRecord | null>(null);
   const [actionsDialogOpen, setActionsDialogOpen] = useState(false);
+  const [detailsDialogOpen, setDetailsDialogOpen] = useState(false);
+  const [changeLabelDialogOpen, setChangeLabelDialogOpen] = useState(false);
   const { user } = useAuth();
 
   useEffect(() => {
@@ -239,16 +256,36 @@ export const EmailHistory = () => {
                       <Mail className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                       <p className="font-medium truncate">Expéditeur : {getDisplaySender(email.sender)}</p>
                     </div>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => {
-                        setSelectedEmail(email);
-                        setActionsDialogOpen(true);
-                      }}
-                    >
-                      <MoreVertical className="h-4 w-4" />
-                    </Button>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="sm">
+                          <MoreVertical className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => {
+                          setSelectedEmail(email);
+                          setDetailsDialogOpen(true);
+                        }}>
+                          <Info className="mr-2 h-4 w-4" />
+                          Voir détails
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => {
+                          setSelectedEmail(email);
+                          setChangeLabelDialogOpen(true);
+                        }}>
+                          <Edit className="mr-2 h-4 w-4" />
+                          Changer label
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => {
+                          setSelectedEmail(email);
+                          setActionsDialogOpen(true);
+                        }}>
+                          <MessageSquare className="mr-2 h-4 w-4" />
+                          Actions email
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </div>
                   <CardTitle className="text-sm font-medium mb-1">
                     {email.subject || 'Sans objet'}
@@ -421,12 +458,26 @@ export const EmailHistory = () => {
       ))}
 
       {selectedEmail && (
-        <EmailActionsDialog
-          email={selectedEmail}
-          open={actionsDialogOpen}
-          onOpenChange={setActionsDialogOpen}
-          onUpdate={loadEmails}
-        />
+        <>
+          <EmailActionsDialog
+            email={selectedEmail}
+            open={actionsDialogOpen}
+            onOpenChange={setActionsDialogOpen}
+            onUpdate={loadEmails}
+          />
+          <EmailDetailsDialog
+            email={selectedEmail}
+            open={detailsDialogOpen}
+            onOpenChange={setDetailsDialogOpen}
+            onEmailUpdated={loadEmails}
+          />
+          <ChangeLabelDialog
+            email={selectedEmail}
+            open={changeLabelDialogOpen}
+            onOpenChange={setChangeLabelDialogOpen}
+            onEmailUpdated={loadEmails}
+          />
+        </>
       )}
     </div>
   );
