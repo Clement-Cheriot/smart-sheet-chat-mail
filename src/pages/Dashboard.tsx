@@ -54,13 +54,6 @@ const Dashboard = () => {
         <Tabs defaultValue="emails" className="space-y-6">
           <TabsList className="flex flex-wrap gap-1 h-auto">
             <TabsTrigger value="emails">Emails</TabsTrigger>
-            <TabsTrigger value="rules">Règles</TabsTrigger>
-            <TabsTrigger value="signatures">Signatures</TabsTrigger>
-            <TabsTrigger value="drafts">Brouillons</TabsTrigger>
-            <TabsTrigger value="auto-response">Réponses Auto</TabsTrigger>
-            <TabsTrigger value="calendar">Calendrier</TabsTrigger>
-            <TabsTrigger value="contacts">Contacts</TabsTrigger>
-            <TabsTrigger value="ai">Agent IA</TabsTrigger>
             <TabsTrigger value="summary">Résumés</TabsTrigger>
             <TabsTrigger value="config">Configuration</TabsTrigger>
           </TabsList>
@@ -79,109 +72,68 @@ const Dashboard = () => {
             </Card>
           </TabsContent>
 
-          <TabsContent value="rules" className="space-y-4">
-            <Card>
-              <CardHeader>
-                <CardTitle>Règles de traitement</CardTitle>
-                <CardDescription>
-                  Gérez vos règles d'automatisation des emails
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <EmailRules />
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="signatures" className="space-y-4">
-            <Card>
-              <CardHeader>
-                <CardTitle>Signatures</CardTitle>
-                <CardDescription>
-                  Gérez vos signatures d'emails
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <SignatureRules />
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="drafts" className="space-y-4">
-            <Card>
-              <CardHeader>
-                <CardTitle>Règles de Brouillons</CardTitle>
-                <CardDescription>
-                  Gérez vos templates de brouillons automatiques
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <DraftRules />
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="auto-response" className="space-y-4">
-            <Card>
-              <CardHeader>
-                <CardTitle>Règles de Réponse Automatique</CardTitle>
-                <CardDescription>
-                  Configurez vos réponses automatiques
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <AutoResponseRules />
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="calendar" className="space-y-4">
-            <Card>
-              <CardHeader>
-                <CardTitle>Règles Calendrier</CardTitle>
-                <CardDescription>
-                  Gérez les actions de calendrier automatiques
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <CalendarRules />
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="contacts" className="space-y-4">
-            <Card>
-              <CardHeader>
-                <CardTitle>Règles Contacts</CardTitle>
-                <CardDescription>
-                  Définissez des préférences par contact
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <ContactRules />
-              </CardContent>
-            </Card>
-          </TabsContent>
-
           <TabsContent value="summary" className="space-y-6">
             <EmailSummary />
           </TabsContent>
 
-          <TabsContent value="ai" className="space-y-6">
-            <AiAgentConfig />
-          </TabsContent>
-
           <TabsContent value="config" className="space-y-4">
-            <GmailConnect />
             <Card>
               <CardHeader>
-                <CardTitle>Configuration API</CardTitle>
+                <CardTitle>Configuration</CardTitle>
                 <CardDescription>
-                  Configurez vos clés API pour Telegram
+                  Gérez toutes vos configurations et règles
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <ApiConfiguration />
+                <Tabs defaultValue="gmail" className="space-y-6">
+                  <TabsList className="flex flex-wrap gap-1 h-auto">
+                    <TabsTrigger value="gmail">Gmail</TabsTrigger>
+                    <TabsTrigger value="rules">Règles Label</TabsTrigger>
+                    <TabsTrigger value="signatures">Signatures</TabsTrigger>
+                    <TabsTrigger value="drafts">Brouillons</TabsTrigger>
+                    <TabsTrigger value="auto-response">Réponses Auto</TabsTrigger>
+                    <TabsTrigger value="calendar">Calendrier</TabsTrigger>
+                    <TabsTrigger value="contacts">Contacts</TabsTrigger>
+                    <TabsTrigger value="ai">Agent IA</TabsTrigger>
+                    <TabsTrigger value="api">API/Token</TabsTrigger>
+                  </TabsList>
+
+                  <TabsContent value="gmail" className="space-y-4">
+                    <GmailConnect />
+                  </TabsContent>
+
+                  <TabsContent value="rules" className="space-y-4">
+                    <EmailRules />
+                  </TabsContent>
+
+                  <TabsContent value="signatures" className="space-y-4">
+                    <SignatureRules />
+                  </TabsContent>
+
+                  <TabsContent value="drafts" className="space-y-4">
+                    <DraftRules />
+                  </TabsContent>
+
+                  <TabsContent value="auto-response" className="space-y-4">
+                    <AutoResponseRules />
+                  </TabsContent>
+
+                  <TabsContent value="calendar" className="space-y-4">
+                    <CalendarRules />
+                  </TabsContent>
+
+                  <TabsContent value="contacts" className="space-y-4">
+                    <ContactRules />
+                  </TabsContent>
+
+                  <TabsContent value="ai" className="space-y-4">
+                    <AiAgentConfig />
+                  </TabsContent>
+
+                  <TabsContent value="api" className="space-y-4">
+                    <ApiConfiguration />
+                  </TabsContent>
+                </Tabs>
               </CardContent>
             </Card>
           </TabsContent>
