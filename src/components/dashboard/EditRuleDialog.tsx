@@ -24,6 +24,7 @@ export const EditRuleDialog = ({ open, onOpenChange, rule, onSuccess, ruleType =
     sender_pattern: rule.sender_pattern || '',
     keywords: Array.isArray(rule.keywords) ? rule.keywords.join(', ') : '',
     response_template: rule.response_template || '',
+    description: rule.description || '',
     create_draft: rule.create_draft || ruleType === 'draft',
     auto_reply: rule.auto_reply || ruleType === 'auto-reply',
     notify_urgent: rule.notify_urgent || ruleType === 'notification',
@@ -38,6 +39,7 @@ export const EditRuleDialog = ({ open, onOpenChange, rule, onSuccess, ruleType =
         priority: formData.priority,
         sender_pattern: formData.sender_pattern || null,
         keywords: formData.keywords ? formData.keywords.split(',').map(k => k.trim()).filter(Boolean) : null,
+        description: formData.description || '',
         exclude_newsletters: true, // Géré par keywords négatifs maintenant
         exclude_marketing: true,   // Géré par keywords négatifs maintenant
       };
@@ -190,6 +192,20 @@ export const EditRuleDialog = ({ open, onOpenChange, rule, onSuccess, ruleType =
             </div>
           )}
 
+          <div className="space-y-2">
+            <Label htmlFor="description">Description / Notes (éditable par vous et l'IA)</Label>
+            <Textarea
+              id="description"
+              value={formData.description}
+              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+              placeholder="Ajoutez des notes, contexte ou instructions pour l'IA. L'IA ajoutera aussi des feedbacks ici lors de l'apprentissage."
+              rows={3}
+            />
+            <p className="text-xs text-muted-foreground">
+              Cette description est utilisée par l'IA pour affiner sa compréhension de cette règle. 
+              L'IA enrichira automatiquement cette section avec vos corrections.
+            </p>
+          </div>
 
           <div className="flex justify-end gap-2 pt-4 border-t">
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>

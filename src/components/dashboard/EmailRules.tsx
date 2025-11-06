@@ -658,6 +658,13 @@ export const EmailRules = () => {
             className="hidden"
           />
           <Button 
+            onClick={() => setEditingRule({ user_id: user?.id, ruleType: activeTab } as any)}
+            size="sm"
+          >
+            <Plus className="h-4 w-4 mr-2" />
+            Nouvelle règle
+          </Button>
+          <Button 
             variant="outline" 
             onClick={createExampleRules}
             size="sm"
