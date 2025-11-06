@@ -9,7 +9,11 @@ import { useToast } from '@/hooks/use-toast';
 import { Bot, Save, RotateCcw, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 
-const DEFAULT_PROMPT = `Tu es un assistant IA spécialisé dans l'analyse d'emails. Tu dois être précis, professionnel et toujours vérifier les domaines d'expéditeur pour détecter le phishing.`;
+const DEFAULT_PROMPT = `Tu es un assistant de classification d'emails. Tu DOIS appliquer exactement 2 labels :
+1. UN label de CATÉGORIE
+2. UN label d'ACTION
+
+Analyse l'email reçu et choisis les 2 labels les plus pertinents. Sois précis et cohérent avec les apprentissages passés.`;
 
 export const AiAgentConfig = () => {
   const { user } = useAuth();

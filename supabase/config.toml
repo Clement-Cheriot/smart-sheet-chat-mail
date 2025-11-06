@@ -42,5 +42,8 @@ verify_jwt = false
 [functions.telegram-webhook]
 verify_jwt = false
 
+[functions.rule-reinforcement]
+verify_jwt = true
+
 [functions.text-to-speech]
 verify_jwt = false

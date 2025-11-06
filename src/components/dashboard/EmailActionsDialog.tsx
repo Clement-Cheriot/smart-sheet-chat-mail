@@ -118,6 +118,8 @@ export const EmailActionsDialog = ({ email, open, onOpenChange, onUpdate }: Emai
         .from('email_history')
         .update({ 
           applied_label: updatedLabels,
+          label_validation_status: 'corrected',
+          label_validation_notes: labelExplanation,
           ai_reasoning: labelExplanation 
             ? `${email.ai_reasoning}\n\n[Correction manuelle]: ${labelExplanation}`
             : email.ai_reasoning
@@ -139,6 +141,25 @@ export const EmailActionsDialog = ({ email, open, onOpenChange, onUpdate }: Emai
           },
           status: 'success'
         });
+
+        // Déclencher automatiquement le renforcement de la règle
+        try {
+          const { error: reinforcementError } = await supabase.functions.invoke('rule-reinforcement', {
+            body: {
+              emailHistoryId: email.id,
+              userId: user?.id
+            }
+          });
+
+          if (reinforcementError) {
+            console.error('Erreur lors du renforcement:', reinforcementError);
+            // On continue quand même, ce n'est pas bloquant
+          } else {
+            console.log('Renforcement de règle appliqué automatiquement');
+          }
+        } catch (e) {
+          console.error('Échec du renforcement automatique:', e);
+        }
       }
 
       toast({ title: 'Succès', description: 'Label modifié dans Gmail et l\'application' });

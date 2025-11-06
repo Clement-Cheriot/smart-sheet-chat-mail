@@ -447,88 +447,80 @@ async function analyzeEmailWithAI(
       .maybeSingle();
     
     const systemPrompt = userConfig?.ai_system_prompt || 
-      'Tu es un assistant IA spécialisé dans l\'analyse d\'emails. Tu dois être précis, professionnel et toujours vérifier les domaines d\'expéditeur pour détecter le phishing.';
+      `Tu es un assistant de classification d'emails. Tu DOIS appliquer exactement 2 labels :
+1. UN label de CATÉGORIE
+2. UN label d'ACTION
+
+Analyse l'email reçu et choisis les 2 labels les plus pertinents. Sois précis et cohérent avec les apprentissages passés.`;
     
-    // Récupérer les corrections passées pour l'apprentissage
-    const { data: corrections } = await supabase
-      .from('email_history')
-      .select('sender, subject, applied_label, label_validation_notes')
+    // Récupérer TOUTES les règles actives avec leurs descriptions enrichies
+    const { data: rules } = await supabase
+      .from('email_rules')
+      .select('label_to_apply, priority, sender_pattern, keywords, description')
       .eq('user_id', userId)
-      .eq('label_validation_status', 'corrected')
-      .order('updated_at', { ascending: false })
-      .limit(10);
+      .eq('is_active', true)
+      .order('rule_order', { ascending: true });
     
-    let learningContext = '';
-    if (corrections && corrections.length > 0) {
-      learningContext = `\n\n📚 CORRECTIONS PASSÉES (apprends de ces exemples):`;
-      corrections.forEach((corr: any, idx: number) => {
-        learningContext += `\n${idx + 1}. Email: "${corr.subject}" de ${corr.sender}`;
-        if (corr.applied_label) {
-          const labels = Array.isArray(corr.applied_label) ? corr.applied_label : [corr.applied_label];
-          learningContext += `\n   Labels corrects: ${labels.join(', ')}`;
+    let rulesContext = '';
+    if (rules && rules.length > 0) {
+      rulesContext = `\n\n📋 BASE DE DONNÉES DES RÈGLES (avec historique des feedbacks):`;
+      rules.forEach((rule: any, idx: number) => {
+        rulesContext += `\n\n${idx + 1}. Label: "${rule.label_to_apply}"`;
+        if (rule.priority) rulesContext += ` | Priorité: ${rule.priority}`;
+        if (rule.sender_pattern) rulesContext += ` | Domaine: ${rule.sender_pattern}`;
+        if (rule.keywords && rule.keywords.length > 0) {
+          rulesContext += ` | Mots-clés: ${rule.keywords.join(', ')}`;
         }
-        if (corr.label_validation_notes) {
-          learningContext += `\n   Explication: ${corr.label_validation_notes}`;
+        if (rule.description && rule.description.trim()) {
+          rulesContext += `\n   📚 Feedbacks utilisateur:\n   ${rule.description.split('\n').join('\n   ')}`;
         }
       });
     }
     
     const labelsContext = existingLabels.length > 0 
-      ? `\n\nLABELS EXISTANTS (à privilégier): ${existingLabels.join(', ')}`
+      ? `\n\nLABELS EXISTANTS: ${existingLabels.join(', ')}`
       : '';
     
     const prompt = `Analyse cet email et fournis des informations structurées EN FRANÇAIS:
 
 De: ${sender}
 Sujet: ${subject}
-Corps: ${body.substring(0, 1000)}${labelsContext}${learningContext}
+Corps: ${body.substring(0, 1000)}${labelsContext}${rulesContext}
 
-INSTRUCTIONS CRITIQUES:
+INSTRUCTIONS CRITIQUES - TU DOIS APPLIQUER EXACTEMENT 2 LABELS:
 
-1. DÉTECTION PHISHING/SPAM (prioritaire):
-   - Vérifie TOUJOURS l'adresse de l'expéditeur
-   - Si l'adresse semble suspecte (domaine inhabituel, caractères aléatoires), c'est probablement du phishing ou spam
-   - Exemple: maynie.shirishyz@mails.growthinsighte.site = PHISHING (domaine non officiel)
-   - Si phishing détecté: category_label = "Secu/Phishing", action_label = "Actions/A supprimer"
-   - Si spam détecté: category_label = "Secu/Spam", action_label = "Actions/A supprimer"
+1. LABEL DE CATÉGORIE (category_label - OBLIGATOIRE):
+   - Consulte la BASE DE DONNÉES DES RÈGLES ci-dessus
+   - Vérifie si l'email correspond à une règle (domaine, mots-clés, feedbacks)
+   - Les feedbacks les plus récents dans les descriptions sont les plus importants
+   - Si correspondance trouvée: utilise CE label exact et mets matched_label = ce label
+   - Si aucune correspondance: suggère un nouveau label thématique (Secu/*, Admin/*, Commande/*, etc.)
+   - ATTENTION: Vérifie toujours l'adresse expéditeur pour détecter phishing/spam
 
-2. LABEL DE CATÉGORIE (category_label - obligatoire):
-   - D'ABORD, vérifie si c'est du phishing/spam (voir point 1)
-   - ENSUITE, vérifie si l'email correspond à un des LABELS EXISTANTS ci-dessus
-   - Si OUI, utilise CE label exact (même orthographe) et mets matched_label = ce label
-   - Si NON, suggère un nouveau label THÉMATIQUE:
-     * Secu/Phishing - Emails suspects, tentatives de phishing, adresses non officielles
-     * Secu/Spam - Spam, publicités non sollicitées
-     * Secu/Alerte - Alertes de sécurité légitimes
-     * Newsletter - Newsletters d'entreprises reconnues
-     * Admin/* - Emails administratifs
-     * Commande/* - Confirmations de commande
-     * etc.
-
-3. LABEL D'ACTION (action_label - obligatoire, toujours préfixer par "Actions/"):
+2. LABEL D'ACTION (action_label - OBLIGATOIRE, toujours préfixer par "Actions/"):
    - Actions/A répondre - Email légitime nécessitant une réponse
    - Actions/Automatique - Réponse automatique déjà envoyée ou prévue
    - Actions/A supprimer - Email à supprimer (spam, phishing, indésirable)
    - Actions/Revue Manuelle - Email nécessitant vérification manuelle
    - Actions/Rien à faire - Email informatif légitime, aucune action requise
 
-4. RAISONNEMENT (reasoning - obligatoire):
+3. RAISONNEMENT (reasoning - OBLIGATOIRE):
    - Explique EN FRANÇAIS pourquoi tu as choisi CES DEUX LABELS
-   - Si c'est du phishing/spam, MENTIONNE-LE explicitement
-   - Si tu as utilisé un label existant, dis lequel
-   - Si tu proposes un nouveau label, explique pourquoi
+   - Si tu as utilisé une règle, mentionne laquelle et pourquoi
+   - Si tu as utilisé un feedback de la description, mentionne-le
+   - Si c'est du phishing/spam, explique comment tu l'as détecté
 
 Fournis une réponse JSON avec:
 1. urgency: échelle de 1 à 10
 2. key_entities: tableau des noms importants, dates, montants
 3. suggested_action: reply/forward/archive/review/urgent_response
-4. body_summary: Résumé bref en 2-3 phrases EN FRANÇAIS (mentionne si c'est du phishing/spam)
-5. reasoning: Explique pourquoi tu as choisi ces 2 labels EN FRANÇAIS
+4. body_summary: Résumé bref en 2-3 phrases EN FRANÇAIS
+5. reasoning: Explique pourquoi tu as choisi ces 2 labels EN FRANÇAIS (mentionne les règles/feedbacks utilisés)
 6. category_label: Le label de catégorie choisi (OBLIGATOIRE)
 7. action_label: Le label d'action choisi avec préfixe "Actions/" (OBLIGATOIRE)
 8. is_phishing: boolean - true si c'est du phishing détecté
 9. is_spam: boolean - true si c'est du spam
-10. matched_label: Si un label existant correspond, mets-le ici (sinon null)
+10. matched_label: Si une règle existante correspond, mets son label ici (sinon null)
 11. suggested_label: Si matched_label est null, suggère un nouveau label thématique
 12. needs_calendar_action: boolean
 13. calendar_details: Si needs_calendar_action=true, {title, date (ISO), duration_minutes, location?, attendees?}

@@ -125,6 +125,7 @@ export type Database = {
           auto_reply: boolean | null
           create_draft: boolean | null
           created_at: string
+          description: string | null
           exclude_marketing: boolean | null
           exclude_newsletters: boolean | null
           id: string
@@ -144,6 +145,7 @@ export type Database = {
           auto_reply?: boolean | null
           create_draft?: boolean | null
           created_at?: string
+          description?: string | null
           exclude_marketing?: boolean | null
           exclude_newsletters?: boolean | null
           id?: string
@@ -163,6 +165,7 @@ export type Database = {
           auto_reply?: boolean | null
           create_draft?: boolean | null
           created_at?: string
+          description?: string | null
           exclude_marketing?: boolean | null
           exclude_newsletters?: boolean | null
           id?: string
