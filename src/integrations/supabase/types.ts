@@ -56,6 +56,7 @@ export type Database = {
           draft_id: string | null
           gmail_message_id: string
           id: string
+          label_validation_notes: string | null
           label_validation_status: string | null
           priority_score: number | null
           processed_at: string
@@ -80,6 +81,7 @@ export type Database = {
           draft_id?: string | null
           gmail_message_id: string
           id?: string
+          label_validation_notes?: string | null
           label_validation_status?: string | null
           priority_score?: number | null
           processed_at?: string
@@ -104,6 +106,7 @@ export type Database = {
           draft_id?: string | null
           gmail_message_id?: string
           id?: string
+          label_validation_notes?: string | null
           label_validation_status?: string | null
           priority_score?: number | null
           processed_at?: string
