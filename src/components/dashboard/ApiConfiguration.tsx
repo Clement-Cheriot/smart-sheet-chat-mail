@@ -17,6 +17,7 @@ export const ApiConfiguration = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
+  const [settingWebhook, setSettingWebhook] = useState(false);
   const [testResult, setTestResult] = useState<any>(null);
   const { user } = useAuth();
   const { toast } = useToast();
@@ -111,6 +112,41 @@ export const ApiConfiguration = () => {
     }
   };
 
+  const setupWebhook = async () => {
+    if (!config.telegram_bot_token) {
+      toast({
+        title: 'Configuration manquante',
+        description: 'Veuillez d\'abord sauvegarder votre token Telegram',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setSettingWebhook(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('telegram-webhook-setup', {
+        headers: {
+          Authorization: `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`
+        }
+      });
+
+      if (error) throw error;
+
+      toast({
+        title: '✅ Webhook configuré',
+        description: 'Votre bot peut maintenant recevoir des commandes',
+      });
+    } catch (error: any) {
+      toast({
+        title: '❌ Erreur webhook',
+        description: error.message || 'Impossible de configurer le webhook',
+        variant: 'destructive',
+      });
+    } finally {
+      setSettingWebhook(false);
+    }
+  };
+
   if (loading) {
     return <div className="text-center py-8 text-muted-foreground">Chargement...</div>;
   }
@@ -179,6 +215,10 @@ export const ApiConfiguration = () => {
           {saving ? 'Sauvegarde...' : 'Sauvegarder la configuration'}
         </Button>
         
+        <Button onClick={setupWebhook} disabled={settingWebhook || !config.telegram_bot_token} variant="secondary" className="w-full">
+          {settingWebhook ? 'Configuration...' : '🔗 Configurer le webhook automatiquement'}
+        </Button>
+        
         <Button onClick={testTelegram} disabled={testing} variant="outline" className="w-full">
           {testing ? 'Test...' : 'Tester Telegram (envoie un message)'}
         </Button>
@@ -237,16 +277,14 @@ export const ApiConfiguration = () => {
           <div>
             <p className="text-sm font-semibold text-foreground mb-1">5. Configurer le webhook (pour les commandes) :</p>
             <ul className="text-sm text-muted-foreground space-y-1 ml-4">
-              <li>• Pour recevoir des résumés via Telegram, vous devez configurer le webhook</li>
-              <li>• <span className="font-semibold text-foreground">BotFather ne gère PAS les webhooks</span> - utilisez l'API directement :</li>
-              <li>• Remplacez &lt;VOTRE_TOKEN&gt; par votre token dans cette URL et ouvrez-la dans votre navigateur :
-                <code className="text-xs bg-background p-1 rounded mt-1 block break-all">
-                  https://api.telegram.org/bot&lt;VOTRE_TOKEN&gt;/setWebhook?url=https://bqnzofttwsuxcucbyxov.supabase.co/functions/v1/telegram-webhook
-                </code>
-              </li>
-              <li>• Vous devez voir : <code className="text-xs bg-background p-1 rounded">{`{"ok":true,"result":true}`}</code></li>
-              <li>• Une fois configuré, envoyez "résumé" ou "/summary" à votre bot pour recevoir un résumé audio des dernières 24h</li>
-              <li>• Commandes disponibles : /summary, /help, résumé, aide</li>
+              <li>• Cliquez sur le bouton "🔗 Configurer le webhook automatiquement" ci-dessus</li>
+              <li>• Cela permettra à votre bot de recevoir et répondre aux commandes</li>
+              <li>• Commandes disponibles :</li>
+              <li className="ml-4">• <code className="text-xs bg-background p-1 rounded">résumé</code> - Résumé des dernières 24h</li>
+              <li className="ml-4">• <code className="text-xs bg-background p-1 rounded">résumé 3 jours</code> - Résumé des 3 derniers jours</li>
+              <li className="ml-4">• <code className="text-xs bg-background p-1 rounded">résumé 1 semaine</code> - Résumé de la dernière semaine</li>
+              <li className="ml-4">• <code className="text-xs bg-background p-1 rounded">résumé 48h</code> - Résumé des 48 dernières heures</li>
+              <li className="ml-4">• <code className="text-xs bg-background p-1 rounded">/help</code> - Afficher l'aide</li>
             </ul>
           </div>
         </div>

@@ -49,12 +49,28 @@ serve(async (req) => {
     const userId = configs[0].user_id;
     console.log('Found user:', userId);
 
-    // Parse command
+    // Parse command and period
     if (messageText.includes('résumé') || messageText.includes('resume') || messageText.includes('/summary')) {
       console.log('Triggering email summary for user:', userId);
       
       const now = new Date();
-      const startTime = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+      let startTime = new Date(now.getTime() - 24 * 60 * 60 * 1000); // default: 24h
+      
+      // Parse period from message (e.g., "résumé 3 jours", "résumé 1 semaine", "résumé 48h")
+      const daysMatch = messageText.match(/(\d+)\s*(jours?|days?)/i);
+      const weeksMatch = messageText.match(/(\d+)\s*(semaines?|weeks?)/i);
+      const hoursMatch = messageText.match(/(\d+)\s*h(eures?)?/i);
+      
+      if (daysMatch) {
+        const days = parseInt(daysMatch[1]);
+        startTime = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
+      } else if (weeksMatch) {
+        const weeks = parseInt(weeksMatch[1]);
+        startTime = new Date(now.getTime() - weeks * 7 * 24 * 60 * 60 * 1000);
+      } else if (hoursMatch) {
+        const hours = parseInt(hoursMatch[1]);
+        startTime = new Date(now.getTime() - hours * 60 * 60 * 1000);
+      }
 
       // Call email-summary function
       const { data, error } = await supabase.functions.invoke('email-summary', {
@@ -114,7 +130,7 @@ serve(async (req) => {
       await supabase.functions.invoke('telegram-sender', {
         body: {
           userId,
-          message: `🤖 *Commandes disponibles:*\n\n📊 \`/summary\` ou \`résumé\` - Résumé emails 24h\n❓ \`/help\` ou \`aide\` - Afficher ce message`,
+          message: `🤖 *Commandes disponibles:*\n\n📊 \`résumé\` ou \`/summary\` - Résumé emails dernières 24h\n📊 \`résumé 3 jours\` - Résumé emails des 3 derniers jours\n📊 \`résumé 1 semaine\` - Résumé emails de la dernière semaine\n📊 \`résumé 48h\` - Résumé emails des 48 dernières heures\n❓ \`/help\` ou \`aide\` - Afficher ce message`,
         }
       });
     }
