@@ -4,7 +4,6 @@ import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Plus, Trash2, Edit, Upload, Download, Power, Trash, Wand2 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { EditRuleDialog } from './EditRuleDialog';
@@ -31,7 +30,6 @@ export const EmailRules = () => {
   const [loading, setLoading] = useState(true);
   const [importing, setImporting] = useState(false);
   const [editingRule, setEditingRule] = useState<Rule | null>(null);
-  const [activeTab, setActiveTab] = useState<'label' | 'draft' | 'auto-reply' | 'notification'>('label');
   const { user } = useAuth();
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -335,86 +333,32 @@ export const EmailRules = () => {
   };
 
   const createExampleRules = async () => {
-    let exampleRules: any[] = [];
     const baseOrder = rules.length;
-
-    if (activeTab === 'label') {
-      exampleRules = [
-        {
-          user_id: user?.id,
-          label_to_apply: 'Newsletter',
-          keywords: ['newsletter', 'actualités', 'abonnement'],
-          priority: 'low',
-          auto_reply: false,
-          create_draft: false,
-          notify_urgent: false,
-          is_active: true,
-          exclude_newsletters: true,
-          exclude_marketing: true,
-          rule_order: baseOrder
-        },
-        {
-          user_id: user?.id,
-          label_to_apply: 'Facturation',
-          keywords: ['facture', 'paiement', 'montant dû'],
-          priority: 'high',
-          is_active: true,
-          exclude_newsletters: true,
-          exclude_marketing: true,
-          rule_order: baseOrder + 1
-        }
-      ];
-    } else if (activeTab === 'draft') {
-      exampleRules = [
-        {
-          user_id: user?.id,
-          label_to_apply: null,
-          keywords: ['facture', 'paiement', 'devis'],
-          priority: 'medium',
-          create_draft: true,
-          auto_reply: false,
-          notify_urgent: false,
-          is_active: true,
-          exclude_newsletters: true,
-          exclude_marketing: true,
-          rule_order: baseOrder
-        }
-      ];
-    } else if (activeTab === 'auto-reply') {
-      exampleRules = [
-        {
-          user_id: user?.id,
-          label_to_apply: null,
-          sender_pattern: '@client-vip.com',
-          keywords: ['urgent', 'problème', 'erreur'],
-          priority: 'high',
-          auto_reply: true,
-          create_draft: false,
-          notify_urgent: false,
-          response_template: 'Bonjour,\n\nNous avons bien reçu votre demande urgente et notre équipe y travaille activement. Nous vous tiendrons informé sous peu.\n\nCordialement',
-          is_active: true,
-          exclude_newsletters: true,
-          exclude_marketing: true,
-          rule_order: baseOrder
-        }
-      ];
-    } else if (activeTab === 'notification') {
-      exampleRules = [
-        {
-          user_id: user?.id,
-          label_to_apply: null,
-          keywords: ['urgent', 'asap', 'immédiat', 'critique'],
-          priority: 'high',
-          auto_reply: false,
-          create_draft: false,
-          notify_urgent: true,
-          is_active: true,
-          exclude_newsletters: true,
-          exclude_marketing: true,
-          rule_order: baseOrder
-        }
-      ];
-    }
+    const exampleRules = [
+      {
+        user_id: user?.id,
+        label_to_apply: 'Newsletter',
+        keywords: ['newsletter', 'actualités', 'abonnement'],
+        priority: 'low',
+        auto_reply: false,
+        create_draft: false,
+        notify_urgent: false,
+        is_active: true,
+        exclude_newsletters: true,
+        exclude_marketing: true,
+        rule_order: baseOrder
+      },
+      {
+        user_id: user?.id,
+        label_to_apply: 'Facturation',
+        keywords: ['facture', 'paiement', 'montant dû'],
+        priority: 'high',
+        is_active: true,
+        exclude_newsletters: true,
+        exclude_marketing: true,
+        rule_order: baseOrder + 1
+      }
+    ];
 
     try {
       const { error } = await supabase
@@ -554,7 +498,7 @@ export const EmailRules = () => {
                 <Button
                   variant="outline"
                   size="icon"
-                  onClick={() => setEditingRule({ ...rule, ruleType: activeTab })}
+                  onClick={() => setEditingRule({ ...rule, ruleType: 'label' })}
                   title="Modifier"
                 >
                   <Edit className="h-4 w-4" />
@@ -580,43 +524,24 @@ export const EmailRules = () => {
   }
 
   const labelRules = rules.filter(r => r.label_to_apply && !r.create_draft && !r.auto_reply);
-  const draftRules = rules.filter(r => r.create_draft);
-  const autoReplyRules = rules.filter(r => r.auto_reply);
-  const notificationRules = rules.filter(r => r.notify_urgent);
 
-  const getCurrentRules = () => {
-    switch (activeTab) {
-      case 'label':
-        return labelRules;
-      case 'draft':
-        return draftRules;
-      case 'auto-reply':
-        return autoReplyRules;
-      case 'notification':
-        return notificationRules;
-      default:
-        return [];
-    }
-  };
-
-  const clearCurrentRules = async () => {
-    const currentRules = getCurrentRules();
-    if (currentRules.length === 0) return;
+  const clearAllLabelRules = async () => {
+    if (labelRules.length === 0) return;
     
-    if (!confirm(`Êtes-vous sûr de vouloir supprimer toutes les règles de cette catégorie (${currentRules.length} règles) ?`)) return;
+    if (!confirm(`Êtes-vous sûr de vouloir supprimer toutes les règles de label (${labelRules.length} règles) ?`)) return;
     
     try {
       const { error } = await supabase
         .from('email_rules')
         .delete()
-        .in('id', currentRules.map(r => r.id));
+        .in('id', labelRules.map(r => r.id));
 
       if (error) throw error;
 
       await loadRules();
       toast({
         title: 'Règles supprimées',
-        description: `${currentRules.length} règles ont été supprimées`,
+        description: `${labelRules.length} règles ont été supprimées`,
       });
     } catch (error: any) {
       toast({
@@ -630,99 +555,68 @@ export const EmailRules = () => {
   return (
     <div className="space-y-4">
       <p className="text-sm text-muted-foreground">
-        Gérez vos règles d'automatisation d'emails. La priorité (high/medium/low) influence le score de l'email.
+        Gérez vos règles de labels pour la catégorisation automatique des emails. La priorité (high/medium/low) influence le score de l'email.
       </p>
 
-      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)} className="w-full">
-        <TabsList className="grid w-full grid-cols-4">
-          <TabsTrigger value="label">
-            Label ({labelRules.length})
-          </TabsTrigger>
-          <TabsTrigger value="draft">
-            Brouillon ({draftRules.length})
-          </TabsTrigger>
-          <TabsTrigger value="auto-reply">
-            Réponse auto ({autoReplyRules.length})
-          </TabsTrigger>
-          <TabsTrigger value="notification">
-            Notification ({notificationRules.length})
-          </TabsTrigger>
-        </TabsList>
+      <div className="flex gap-2 mb-4">
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".xlsx,.xls"
+          onChange={handleFileImport}
+          className="hidden"
+        />
+        <Button 
+          onClick={() => setEditingRule({ user_id: user?.id, ruleType: 'label' } as any)}
+          size="sm"
+        >
+          <Plus className="h-4 w-4 mr-2" />
+          Nouvelle règle
+        </Button>
+        <Button 
+          variant="outline" 
+          onClick={createExampleRules}
+          size="sm"
+        >
+          <Wand2 className="h-4 w-4 mr-2" />
+          Créer des exemples
+        </Button>
+        <Button 
+          variant="outline" 
+          onClick={downloadTemplate}
+          size="sm"
+        >
+          <Download className="h-4 w-4 mr-2" />
+          Template Excel
+        </Button>
+        <Button 
+          variant="outline" 
+          onClick={() => fileInputRef.current?.click()}
+          disabled={importing}
+          size="sm"
+        >
+          <Upload className="h-4 w-4 mr-2" />
+          {importing ? 'Import...' : 'Importer Excel'}
+        </Button>
+        <Button 
+          variant="outline" 
+          onClick={exportRules}
+          size="sm"
+        >
+          <Download className="h-4 w-4 mr-2" />
+          Exporter règles
+        </Button>
+        <Button 
+          variant="destructive" 
+          onClick={clearAllLabelRules}
+          size="sm"
+        >
+          <Trash className="h-4 w-4 mr-2" />
+          Supprimer tout
+        </Button>
+      </div>
 
-        <div className="flex gap-2 mt-4 mb-4">
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".xlsx,.xls"
-            onChange={handleFileImport}
-            className="hidden"
-          />
-          <Button 
-            onClick={() => setEditingRule({ user_id: user?.id, ruleType: activeTab } as any)}
-            size="sm"
-          >
-            <Plus className="h-4 w-4 mr-2" />
-            Nouvelle règle
-          </Button>
-          <Button 
-            variant="outline" 
-            onClick={createExampleRules}
-            size="sm"
-          >
-            <Wand2 className="h-4 w-4 mr-2" />
-            Créer des exemples
-          </Button>
-          <Button 
-            variant="outline" 
-            onClick={downloadTemplate}
-            size="sm"
-          >
-            <Download className="h-4 w-4 mr-2" />
-            Template Excel
-          </Button>
-          <Button 
-            variant="outline" 
-            onClick={() => fileInputRef.current?.click()}
-            disabled={importing}
-            size="sm"
-          >
-            <Upload className="h-4 w-4 mr-2" />
-            {importing ? 'Import...' : 'Importer Excel'}
-          </Button>
-          <Button 
-            variant="outline" 
-            onClick={exportRules}
-            size="sm"
-          >
-            <Download className="h-4 w-4 mr-2" />
-            Exporter règles
-          </Button>
-          <Button 
-            variant="destructive" 
-            onClick={clearCurrentRules}
-            size="sm"
-          >
-            <Trash className="h-4 w-4 mr-2" />
-            Supprimer tout
-          </Button>
-        </div>
-
-        <TabsContent value="label" className="mt-0">
-          {renderRulesList(labelRules)}
-        </TabsContent>
-
-        <TabsContent value="draft" className="mt-0">
-          {renderRulesList(draftRules)}
-        </TabsContent>
-
-        <TabsContent value="auto-reply" className="mt-0">
-          {renderRulesList(autoReplyRules)}
-        </TabsContent>
-
-        <TabsContent value="notification" className="mt-0">
-          {renderRulesList(notificationRules)}
-        </TabsContent>
-      </Tabs>
+      {renderRulesList(labelRules)}
 
       {editingRule && (
         <EditRuleDialog
@@ -730,7 +624,7 @@ export const EmailRules = () => {
           onOpenChange={(open) => !open && setEditingRule(null)}
           rule={editingRule}
           onSuccess={loadRules}
-          ruleType={(editingRule as any).ruleType || activeTab}
+          ruleType="label"
         />
       )}
     </div>
