@@ -193,6 +193,12 @@ export const EmailHistory = () => {
     return 'secondary';
   };
 
+  const getConfidenceColor = (confidence: number): string => {
+    if (confidence >= 90) return 'bg-green-500/10 text-green-700 border-green-500/20';
+    if (confidence >= 70) return 'bg-orange-500/10 text-orange-700 border-orange-500/20';
+    return 'bg-red-500/10 text-red-700 border-red-500/20';
+  };
+
   const getDisplaySender = (s: string) => {
     if (!s) return 'Inconnu';
     const match = s.match(/(.+?)<(.+?)>/);
@@ -297,12 +303,17 @@ export const EmailHistory = () => {
                   )}
                 </div>
                 <div className="text-right flex-shrink-0">
-                  <div className="flex items-center gap-1 text-xs text-muted-foreground mb-2">
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground mb-2">
                     <Clock className="h-3 w-3" />
                     {formatDistanceToNow(new Date(email.received_at), {
                       addSuffix: true,
                       locale: fr,
                     })}
+                    {email.confidence !== undefined && (
+                      <Badge className={`text-xs border ${getConfidenceColor(email.confidence)}`}>
+                        {email.confidence}%
+                      </Badge>
+                    )}
                   </div>
                   {email.priority_score && (
                     <Badge variant={getPriorityColor(email.priority_score)} className="text-xs">

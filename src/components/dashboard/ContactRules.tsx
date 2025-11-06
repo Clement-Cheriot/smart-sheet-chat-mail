@@ -58,61 +58,64 @@ export const ContactRules = () => {
   };
 
   const handleSubmit = async () => {
-    if (!formData.email) {
+    if (!formData.email?.trim()) {
       toast({ title: "Erreur", description: "L'email est requis", variant: "destructive" });
       return;
     }
-
-    const preferred_signature_id = formData.preferred_signature_id || null;
-    const preferred_tone = formData.preferred_tone || null;
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      toast({ title: "Erreur", description: "Utilisateur non connecté", variant: "destructive" });
+    
+    // Validation basique de l'email
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(formData.email.trim())) {
+      toast({ title: "Erreur", description: "Format d'email invalide", variant: "destructive" });
       return;
     }
-    
-    if (editingContact) {
-      const { error } = await supabase
-        .from("contact_rules")
-        .update({ 
-          email: formData.email, 
-          name: formData.name || null, 
-          preferred_signature_id, 
-          preferred_tone, 
-          notes: formData.notes || null 
-        })
-        .eq("id", editingContact.id);
 
-      if (error) {
-        console.error("Erreur mise à jour:", error);
-        toast({ title: "Erreur", description: error.message, variant: "destructive" });
-      } else {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        toast({ title: "Erreur", description: "Utilisateur non connecté", variant: "destructive" });
+        return;
+      }
+      
+      const contactData = {
+        email: formData.email.trim().toLowerCase(),
+        name: formData.name?.trim() || null,
+        preferred_signature_id: formData.preferred_signature_id || null,
+        preferred_tone: formData.preferred_tone || null,
+        notes: formData.notes?.trim() || null
+      };
+
+      if (editingContact) {
+        const { error } = await supabase
+          .from("contact_rules")
+          .update(contactData)
+          .eq("id", editingContact.id);
+
+        if (error) {
+          console.error("Erreur mise à jour:", error);
+          toast({ title: "Erreur", description: error.message, variant: "destructive" });
+          return;
+        }
         toast({ title: "Succès", description: "Contact modifié" });
-        fetchContacts();
-        setIsDialogOpen(false);
-        resetForm();
-      }
-    } else {
-      const { error } = await supabase
-        .from("contact_rules")
-        .insert([{ 
-          email: formData.email, 
-          name: formData.name || null, 
-          preferred_signature_id, 
-          preferred_tone, 
-          notes: formData.notes || null,
-          user_id: user.id
-        }]);
-
-      if (error) {
-        console.error("Erreur insertion:", error);
-        toast({ title: "Erreur", description: error.message, variant: "destructive" });
       } else {
+        const { error } = await supabase
+          .from("contact_rules")
+          .insert([{ ...contactData, user_id: user.id }]);
+
+        if (error) {
+          console.error("Erreur insertion:", error);
+          toast({ title: "Erreur", description: error.message, variant: "destructive" });
+          return;
+        }
         toast({ title: "Succès", description: "Contact créé" });
-        fetchContacts();
-        setIsDialogOpen(false);
-        resetForm();
       }
+      
+      await fetchContacts();
+      setIsDialogOpen(false);
+      resetForm();
+    } catch (e: any) {
+      console.error("Erreur handleSubmit:", e);
+      toast({ title: "Erreur", description: e.message || "Erreur inattendue", variant: "destructive" });
     }
   };
 

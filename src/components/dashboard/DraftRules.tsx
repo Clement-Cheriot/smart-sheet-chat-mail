@@ -57,53 +57,70 @@ export const DraftRules = () => {
   };
 
   const handleSubmit = async () => {
-    if (!formData.name || !formData.template) {
-      toast({ title: "Erreur", description: "Nom et template sont requis", variant: "destructive" });
+    if (!formData.name?.trim()) {
+      toast({ title: "Erreur", description: "Le nom est requis", variant: "destructive" });
+      return;
+    }
+    if (!formData.template?.trim()) {
+      toast({ title: "Erreur", description: "Le template est requis", variant: "destructive" });
       return;
     }
 
     try {
-      const conditions = formData.conditions ? JSON.parse(formData.conditions) : null;
-      const signature_id = formData.signature_id || null;
+      let conditions = null;
+      if (formData.conditions?.trim()) {
+        try {
+          conditions = JSON.parse(formData.conditions);
+        } catch (parseError) {
+          toast({ title: "Erreur", description: "Le JSON des conditions est invalide", variant: "destructive" });
+          return;
+        }
+      }
+
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
         toast({ title: "Erreur", description: "Utilisateur non connecté", variant: "destructive" });
         return;
       }
       
+      const ruleData = {
+        name: formData.name.trim(),
+        template: formData.template.trim(),
+        signature_id: formData.signature_id || null,
+        conditions
+      };
+
       if (editingRule) {
         const { error } = await supabase
           .from("draft_rules")
-          .update({ name: formData.name, template: formData.template, signature_id, conditions })
+          .update(ruleData)
           .eq("id", editingRule.id);
 
         if (error) {
           console.error("Erreur mise à jour:", error);
           toast({ title: "Erreur", description: error.message, variant: "destructive" });
-        } else {
-          toast({ title: "Succès", description: "Règle modifiée" });
-          fetchRules();
-          setIsDialogOpen(false);
-          resetForm();
+          return;
         }
+        toast({ title: "Succès", description: "Règle de brouillon modifiée" });
       } else {
         const { error } = await supabase
           .from("draft_rules")
-          .insert([{ name: formData.name, template: formData.template, signature_id, conditions, user_id: user.id }]);
+          .insert([{ ...ruleData, user_id: user.id }]);
 
         if (error) {
           console.error("Erreur insertion:", error);
           toast({ title: "Erreur", description: error.message, variant: "destructive" });
-        } else {
-          toast({ title: "Succès", description: "Règle créée" });
-          fetchRules();
-          setIsDialogOpen(false);
-          resetForm();
+          return;
         }
+        toast({ title: "Succès", description: "Règle de brouillon créée" });
       }
-    } catch (e) {
-      console.error("Erreur:", e);
-      toast({ title: "Erreur", description: "Erreur lors de la validation des données", variant: "destructive" });
+      
+      await fetchRules();
+      setIsDialogOpen(false);
+      resetForm();
+    } catch (e: any) {
+      console.error("Erreur handleSubmit:", e);
+      toast({ title: "Erreur", description: e.message || "Erreur inattendue", variant: "destructive" });
     }
   };
 

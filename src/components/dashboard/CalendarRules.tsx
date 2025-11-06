@@ -46,52 +46,66 @@ export const CalendarRules = () => {
   };
 
   const handleSubmit = async () => {
-    if (!formData.name) {
+    if (!formData.name?.trim()) {
       toast({ title: "Erreur", description: "Le nom est requis", variant: "destructive" });
       return;
     }
 
     try {
-      const conditions = formData.conditions ? JSON.parse(formData.conditions) : null;
+      let conditions = null;
+      if (formData.conditions?.trim()) {
+        try {
+          conditions = JSON.parse(formData.conditions);
+        } catch (parseError) {
+          toast({ title: "Erreur", description: "Le JSON des conditions est invalide", variant: "destructive" });
+          return;
+        }
+      }
+
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
         toast({ title: "Erreur", description: "Utilisateur non connecté", variant: "destructive" });
         return;
       }
       
+      const ruleData = {
+        name: formData.name.trim(),
+        action_type: formData.action_type,
+        exclude_noreply: formData.exclude_noreply,
+        conditions
+      };
+
       if (editingRule) {
         const { error } = await supabase
           .from("calendar_rules")
-          .update({ name: formData.name, action_type: formData.action_type, conditions, exclude_noreply: formData.exclude_noreply })
+          .update(ruleData)
           .eq("id", editingRule.id);
 
         if (error) {
           console.error("Erreur mise à jour:", error);
           toast({ title: "Erreur", description: error.message, variant: "destructive" });
-        } else {
-          toast({ title: "Succès", description: "Règle modifiée" });
-          fetchRules();
-          setIsDialogOpen(false);
-          resetForm();
+          return;
         }
+        toast({ title: "Succès", description: "Règle calendrier modifiée" });
       } else {
         const { error } = await supabase
           .from("calendar_rules")
-          .insert([{ name: formData.name, action_type: formData.action_type, conditions, exclude_noreply: formData.exclude_noreply, user_id: user.id }]);
+          .insert([{ ...ruleData, user_id: user.id }]);
 
         if (error) {
           console.error("Erreur insertion:", error);
           toast({ title: "Erreur", description: error.message, variant: "destructive" });
-        } else {
-          toast({ title: "Succès", description: "Règle créée" });
-          fetchRules();
-          setIsDialogOpen(false);
-          resetForm();
+          return;
         }
+        toast({ title: "Succès", description: "Règle calendrier créée" });
       }
-    } catch (e) {
-      console.error("Erreur:", e);
-      toast({ title: "Erreur", description: "Erreur lors de la validation des données", variant: "destructive" });
+      
+      await fetchRules();
+      setIsDialogOpen(false);
+      resetForm();
+    } catch (e: any) {
+      console.error("Erreur handleSubmit:", e);
+      toast({ title: "Erreur", description: e.message || "Erreur inattendue", variant: "destructive" });
     }
   };
 
