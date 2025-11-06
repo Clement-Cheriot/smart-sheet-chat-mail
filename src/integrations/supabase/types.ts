@@ -292,6 +292,7 @@ export type Database = {
       }
       user_api_configs: {
         Row: {
+          ai_system_prompt: string | null
           created_at: string
           gmail_credentials: Json | null
           google_sheets_id: string | null
@@ -309,6 +310,7 @@ export type Database = {
           whatsapp_threshold: number | null
         }
         Insert: {
+          ai_system_prompt?: string | null
           created_at?: string
           gmail_credentials?: Json | null
           google_sheets_id?: string | null
@@ -326,6 +328,7 @@ export type Database = {
           whatsapp_threshold?: number | null
         }
         Update: {
+          ai_system_prompt?: string | null
           created_at?: string
           gmail_credentials?: Json | null
           google_sheets_id?: string | null

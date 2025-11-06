@@ -10,6 +10,7 @@ import { ApiConfiguration } from '@/components/dashboard/ApiConfiguration';
 import { EmailRules } from '@/components/dashboard/EmailRules';
 import { GmailConnect } from '@/components/dashboard/GmailConnect';
 import { EmailSummary } from '@/components/dashboard/EmailSummary';
+import { AiAgentConfig } from '@/components/dashboard/AiAgentConfig';
 
 const Dashboard = () => {
   const { user, loading, signOut } = useAuth();
@@ -46,7 +47,7 @@ const Dashboard = () => {
 
       <main className="container mx-auto px-4 py-8">
         <Tabs defaultValue="emails" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4 lg:w-auto">
+          <TabsList className="grid w-full grid-cols-5 lg:w-auto">
             <TabsTrigger value="emails">
               <Mail className="mr-2 h-4 w-4" />
               Emails
@@ -58,6 +59,10 @@ const Dashboard = () => {
             <TabsTrigger value="summary">
               <BarChart3 className="mr-2 h-4 w-4" />
               Résumés
+            </TabsTrigger>
+            <TabsTrigger value="ai">
+              <Settings className="mr-2 h-4 w-4" />
+              Agent IA
             </TabsTrigger>
             <TabsTrigger value="config">
               <Settings className="mr-2 h-4 w-4" />
@@ -95,6 +100,10 @@ const Dashboard = () => {
 
           <TabsContent value="summary" className="space-y-6">
             <EmailSummary />
+          </TabsContent>
+
+          <TabsContent value="ai" className="space-y-6">
+            <AiAgentConfig />
           </TabsContent>
 
           <TabsContent value="config" className="space-y-4">

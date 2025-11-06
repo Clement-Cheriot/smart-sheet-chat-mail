@@ -78,7 +78,9 @@ serve(async (req) => {
       emailData.subject,
       emailData.body,
       lovableApiKey,
-      existingLabels
+      existingLabels,
+      emailData.userId,
+      supabase
     );
 
     console.log('AI Analysis:', aiAnalysis);
@@ -432,9 +434,45 @@ async function analyzeEmailWithAI(
   subject: string,
   body: string,
   apiKey: string,
-  existingLabels: string[]
+  existingLabels: string[],
+  userId: string,
+  supabase: any
 ): Promise<any> {
   try {
+    // Récupérer le prompt système personnalisé
+    const { data: userConfig } = await supabase
+      .from('user_api_configs')
+      .select('ai_system_prompt')
+      .eq('user_id', userId)
+      .maybeSingle();
+    
+    const systemPrompt = userConfig?.ai_system_prompt || 
+      'Tu es un assistant IA spécialisé dans l\'analyse d\'emails. Tu dois être précis, professionnel et toujours vérifier les domaines d\'expéditeur pour détecter le phishing.';
+    
+    // Récupérer les corrections passées pour l'apprentissage
+    const { data: corrections } = await supabase
+      .from('email_history')
+      .select('sender, subject, applied_label, label_validation_notes')
+      .eq('user_id', userId)
+      .eq('label_validation_status', 'corrected')
+      .order('updated_at', { ascending: false })
+      .limit(10);
+    
+    let learningContext = '';
+    if (corrections && corrections.length > 0) {
+      learningContext = `\n\n📚 CORRECTIONS PASSÉES (apprends de ces exemples):`;
+      corrections.forEach((corr: any, idx: number) => {
+        learningContext += `\n${idx + 1}. Email: "${corr.subject}" de ${corr.sender}`;
+        if (corr.applied_label) {
+          const labels = Array.isArray(corr.applied_label) ? corr.applied_label : [corr.applied_label];
+          learningContext += `\n   Labels corrects: ${labels.join(', ')}`;
+        }
+        if (corr.label_validation_notes) {
+          learningContext += `\n   Explication: ${corr.label_validation_notes}`;
+        }
+      });
+    }
+    
     const labelsContext = existingLabels.length > 0 
       ? `\n\nLABELS EXISTANTS (à privilégier): ${existingLabels.join(', ')}`
       : '';
@@ -443,7 +481,7 @@ async function analyzeEmailWithAI(
 
 De: ${sender}
 Sujet: ${subject}
-Corps: ${body.substring(0, 1000)}${labelsContext}
+Corps: ${body.substring(0, 1000)}${labelsContext}${learningContext}
 
 INSTRUCTIONS CRITIQUES:
 
@@ -510,7 +548,7 @@ Fournis une réponse JSON avec:
         messages: [
           {
             role: 'system',
-            content: 'Tu es un assistant d\'analyse d\'emails. Réponds toujours en français avec du JSON valide.',
+            content: systemPrompt,
           },
           {
             role: 'user',

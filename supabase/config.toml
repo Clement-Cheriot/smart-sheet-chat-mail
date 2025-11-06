@@ -39,5 +39,8 @@ verify_jwt = false
 [functions.gmail-calendar]
 verify_jwt = false
 
+[functions.telegram-webhook]
+verify_jwt = false
+
 [functions.text-to-speech]
 verify_jwt = false
