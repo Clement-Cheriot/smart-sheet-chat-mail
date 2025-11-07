@@ -662,8 +662,20 @@ Fournis une réponse JSON avec:
 function matchesRule(email: EmailData, rule: any): boolean {
   // Check sender pattern
   if (rule.sender_pattern) {
-    const pattern = new RegExp(rule.sender_pattern, 'i');
-    if (!pattern.test(email.sender)) {
+    try {
+      const raw = String(rule.sender_pattern);
+      // Escape all regex metacharacters, then re-introduce wildcard support: * => .*, ? => .
+      const escaped = raw
+        .replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+        .replace(/\\\*/g, '.*')
+        .replace(/\\\?/g, '.');
+      const pattern = new RegExp(`^${escaped}$`, 'i');
+      if (!pattern.test(email.sender)) {
+        return false;
+      }
+    } catch (e) {
+      console.warn('Invalid sender_pattern, skipping rule match:', rule.sender_pattern, e);
+      // If pattern is invalid, treat as non-match rather than throwing
       return false;
     }
   }

@@ -137,7 +137,7 @@ serve(async (req) => {
       query += ` after:${afterEpoch}`;
     }
 
-    // Fetch messages with light pagination (max ~200)
+    // Fetch messages with light pagination (max ~50 per run to avoid timeouts)
     let allMessages: any[] = [];
     let pageToken: string | undefined = undefined;
     let pagesFetched = 0;
@@ -167,7 +167,7 @@ serve(async (req) => {
       allMessages.push(...batch);
       pageToken = page.nextPageToken;
       pagesFetched++;
-    } while (pageToken && allMessages.length < 200 && pagesFetched < 4);
+    } while (pageToken && allMessages.length < 50 && pagesFetched < 1);
     // Fallback if nothing found on first sync: fetch latest INBOX without query
     if (allMessages.length === 0 && firstSync) {
       pageToken = undefined;
@@ -189,7 +189,7 @@ serve(async (req) => {
         allMessages.push(...batch2);
         pageToken = page2.nextPageToken;
         pagesFetched++;
-      } while (pageToken && allMessages.length < 100 && pagesFetched < 2);
+      } while (pageToken && allMessages.length < 50 && pagesFetched < 1);
     }
 
     // Filter out already processed messages
