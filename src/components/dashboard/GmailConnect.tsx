@@ -36,7 +36,7 @@ export const GmailConnect = () => {
       const { data, error } = await supabase
         .from('user_api_configs')
         .select('gmail_credentials')
-        .single();
+        .maybeSingle();
 
       if (error && error.code !== 'PGRST116') {
         console.error('Error checking Gmail connection:', error);
@@ -103,7 +103,7 @@ export const GmailConnect = () => {
         const { data: configData } = await supabase
           .from('user_api_configs')
           .select('gmail_credentials')
-          .single();
+          .maybeSingle();
 
         if (configData?.gmail_credentials) {
           clearInterval(pollInterval);

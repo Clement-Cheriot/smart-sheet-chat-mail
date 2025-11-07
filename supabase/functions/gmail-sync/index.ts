@@ -63,6 +63,29 @@ serve(async (req) => {
     const credentials = config.gmail_credentials;
     let accessToken = credentials.access_token;
 
+    // Sanity check: fetch Gmail profile to confirm access and get mailbox size
+    let messagesTotalEstimate: number | null = null;
+    let profileRes: Response = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/profile', {
+      headers: { 'Authorization': `Bearer ${accessToken}` }
+    });
+    if (!profileRes.ok && (profileRes.status === 401 || profileRes.status === 403)) {
+      accessToken = await refreshAccessToken(credentials);
+      await supabase
+        .from('user_api_configs')
+        .update({ gmail_credentials: { ...credentials, access_token: accessToken } })
+        .eq('user_id', userId);
+      profileRes = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/profile', {
+        headers: { 'Authorization': `Bearer ${accessToken}` }
+      });
+    }
+    if (profileRes.ok) {
+      const profile: any = await profileRes.json();
+      console.log('Gmail profile:', { emailAddress: profile.emailAddress, messagesTotal: profile.messagesTotal });
+      messagesTotalEstimate = typeof profile.messagesTotal === 'number' ? profile.messagesTotal : null;
+    } else {
+      console.warn('Failed to load Gmail profile:', profileRes.status);
+    }
+
     // Load last sync checkpoint and detect first sync
     let lastSyncedAt = null as string | null;
     let firstSync = false;
@@ -94,13 +117,10 @@ serve(async (req) => {
 
     const processedIds = new Set(processedEmails?.map(e => e.gmail_message_id) || []);
 
-    // Build Gmail query
-    const baseQuery = 'in:inbox -in:drafts -in:spam';
+    // Build Gmail query (prefer labelIds=INBOX and minimal q to avoid over-filtering)
+    const baseQuery = '-in:drafts -in:spam';
     let query = baseQuery;
-    if (firstSync) {
-      // Initial import: up to ~1 year of messages (limited below to 200)
-      query += ' newer_than:1y';
-    } else if (lastSyncedAt) {
+    if (!firstSync && lastSyncedAt) {
       const afterEpoch = Math.floor(new Date(lastSyncedAt).getTime() / 1000);
       query += ` after:${afterEpoch}`;
     }
