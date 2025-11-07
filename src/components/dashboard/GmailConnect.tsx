@@ -24,7 +24,7 @@ export const GmailConnect = () => {
       setIsConnected(true);
       toast.success("Gmail connecté avec succès !");
       // Clean up URL for HashRouter
-      window.history.replaceState({}, '', '/#/dashboard');
+      window.history.replaceState({}, '', `${window.location.pathname}${window.location.search}#/dashboard`);
     } else if (gmailSuccess === 'false') {
       toast.error("Erreur de connexion Gmail");
       window.history.replaceState({}, '', '/#/dashboard');

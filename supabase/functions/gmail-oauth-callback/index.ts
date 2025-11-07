@@ -16,8 +16,8 @@ serve(async (req) => {
         <script>
           (function(){
             try { if (window.opener) { window.opener.postMessage({ type: 'gmail_oauth_complete', success: false }, '*'); } } catch(_) {}
-            setTimeout(function(){ window.close(); }, 100);
-            setTimeout(function(){ window.location.href = '${dashboardUrl}'; }, 500);
+            setTimeout(function(){ window.close(); }, 1200);
+            setTimeout(function(){ window.location.href = '${dashboardUrl}'; }, 1500);
           })();
         </script>
       </body></html>`;
@@ -113,8 +113,8 @@ serve(async (req) => {
       <script>
         (function(){
           try { if (window.opener) { window.opener.postMessage({ type: 'gmail_oauth_complete', success: true }, '*'); } } catch(_) {}
-          setTimeout(function(){ window.close(); }, 100);
-          setTimeout(function(){ window.location.href = '${dashboardUrl}'; }, 500);
+           setTimeout(function(){ window.close(); }, 1200);
+           setTimeout(function(){ window.location.href = '${dashboardUrl}'; }, 1500);
         })();
       </script>
     </body></html>`;
@@ -130,7 +130,7 @@ serve(async (req) => {
       <script>
         (function(){
           try { if (window.opener) { window.opener.postMessage({ type: 'gmail_oauth_complete', success: false }, '*'); } } catch(_) {}
-          setTimeout(function(){ window.close(); }, 100);
+           setTimeout(function(){ window.close(); }, 1200);
           setTimeout(function(){ window.location.href = '${dashboardUrl}'; }, 500);
         })();
       </script>
