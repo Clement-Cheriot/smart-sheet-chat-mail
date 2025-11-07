@@ -72,13 +72,38 @@ export const GmailConnect = () => {
         return;
       }
 
-      // Redirect directement (sans popup) pour éviter les erreurs de sécurité en iframe
-      window.location.assign(data.authUrl as string);
+      // Open OAuth in new window (works in iframe context)
+      const authWindow = window.open(data.authUrl as string, '_blank', 'width=600,height=700');
+      
+      if (!authWindow) {
+        toast.error("Veuillez autoriser les popups pour ce site");
+        return;
+      }
+
+      // Poll for connection status
+      const pollInterval = setInterval(async () => {
+        const { data: configData } = await supabase
+          .from('user_api_configs')
+          .select('gmail_credentials')
+          .single();
+
+        if (configData?.gmail_credentials) {
+          clearInterval(pollInterval);
+          setIsConnected(true);
+          toast.success("Gmail connecté avec succès !");
+          setIsLoading(false);
+        }
+      }, 2000);
+
+      // Stop polling after 2 minutes
+      setTimeout(() => {
+        clearInterval(pollInterval);
+        setIsLoading(false);
+      }, 120000);
 
     } catch (error) {
       console.error('Error connecting Gmail:', error);
       toast.error("Erreur lors de la connexion Gmail");
-    } finally {
       setIsLoading(false);
     }
   };
