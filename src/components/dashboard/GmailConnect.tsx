@@ -147,6 +147,9 @@ export const GmailConnect = () => {
       }
 
       const { data, error } = await supabase.functions.invoke('gmail-sync', {
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
         body: { userId: session.user.id },
       });
 

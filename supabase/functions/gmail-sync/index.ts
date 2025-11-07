@@ -22,14 +22,14 @@ serve(async (req) => {
     userId = body.userId;
     console.log('Syncing emails for user:', userId);
 
-    // Check if sync is already in progress
-    const { data: syncState } = await supabase
+    // Load existing state first to avoid setting last_synced_at prematurely
+    const { data: stateRow } = await supabase
       .from('gmail_sync_state')
-      .select('sync_in_progress')
+      .select('last_synced_at, sync_in_progress')
       .eq('user_id', userId)
       .maybeSingle();
-    
-    if (syncState?.sync_in_progress) {
+
+    if (stateRow?.sync_in_progress) {
       console.log('Sync already in progress for user:', userId);
       return new Response(
         JSON.stringify({ 
@@ -41,7 +41,11 @@ serve(async (req) => {
       );
     }
 
-    // Set sync_in_progress to true
+    // Prepare sync window
+    let lastSyncedAt: string | null = stateRow?.last_synced_at ?? null;
+    let firstSync = !stateRow;
+
+    // Now set sync_in_progress to true (will insert row if missing)
     await supabase
       .from('gmail_sync_state')
       .upsert(
@@ -86,26 +90,15 @@ serve(async (req) => {
       console.warn('Failed to load Gmail profile:', profileRes.status);
     }
 
-    // Load last sync checkpoint and detect first sync
-    let lastSyncedAt = null as string | null;
-    let firstSync = false;
-    const { data: state } = await supabase
-      .from('gmail_sync_state')
-      .select('last_synced_at')
-      .eq('user_id', userId)
-      .maybeSingle();
-    if (state?.last_synced_at) {
-      lastSyncedAt = state.last_synced_at;
-    } else {
-      // No previous sync state, check if any emails were processed
+    // Determine first sync if an existing state row was created previously but no emails processed yet
+    if (!firstSync && lastSyncedAt) {
       const { count } = await supabase
         .from('email_history')
         .select('id', { count: 'exact', head: true })
         .eq('user_id', userId);
-      firstSync = (count ?? 0) === 0;
-      // If not first sync but no state, default to last 30 days to be safe
-      if (!firstSync) {
-        lastSyncedAt = new Date(Date.now() - 30 * 24 * 3600 * 1000).toISOString();
+      if ((count ?? 0) === 0) {
+        firstSync = true;
+        lastSyncedAt = null; // Ensure we fetch a meaningful initial batch
       }
     }
 
