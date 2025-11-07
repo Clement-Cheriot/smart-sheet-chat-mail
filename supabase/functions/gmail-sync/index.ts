@@ -110,7 +110,7 @@ serve(async (req) => {
     let pageToken: string | undefined = undefined;
     let pagesFetched = 0;
     do {
-      const url: string = `https://gmail.googleapis.com/gmail/v1/users/me/messages?q=${encodeURIComponent(query)}&maxResults=50${pageToken ? `&pageToken=${pageToken}` : ''}`;
+      const url: string = `https://gmail.googleapis.com/gmail/v1/users/me/messages?labelIds=INBOX&q=${encodeURIComponent(query)}&maxResults=50${pageToken ? `&pageToken=${pageToken}` : ''}`;
       let response: Response = await fetch(url, { headers: { 'Authorization': `Bearer ${accessToken}` } });
 
       // Refresh token if expired
@@ -136,12 +136,34 @@ serve(async (req) => {
       pageToken = page.nextPageToken;
       pagesFetched++;
     } while (pageToken && allMessages.length < 200 && pagesFetched < 4);
+    // Fallback if nothing found on first sync: fetch latest INBOX without query
+    if (allMessages.length === 0 && firstSync) {
+      pageToken = undefined;
+      pagesFetched = 0;
+      do {
+        const url2: string = `https://gmail.googleapis.com/gmail/v1/users/me/messages?labelIds=INBOX&maxResults=50${pageToken ? `&pageToken=${pageToken}` : ''}`;
+        let response2: Response = await fetch(url2, { headers: { 'Authorization': `Bearer ${accessToken}` } });
+        if (!response2.ok && (response2.status === 401 || response2.status === 403)) {
+          accessToken = await refreshAccessToken(credentials);
+          await supabase
+            .from('user_api_configs')
+            .update({ gmail_credentials: { ...credentials, access_token: accessToken } })
+            .eq('user_id', userId);
+          response2 = await fetch(url2, { headers: { 'Authorization': `Bearer ${accessToken}` } });
+        }
+        if (!response2.ok) throw new Error(`Gmail API error: ${response2.status}`);
+        const page2: any = await response2.json();
+        const batch2 = page2.messages || [];
+        allMessages.push(...batch2);
+        pageToken = page2.nextPageToken;
+        pagesFetched++;
+      } while (pageToken && allMessages.length < 100 && pagesFetched < 2);
+    }
 
     // Filter out already processed messages
     const messages = allMessages.filter((msg: any) => !processedIds.has(msg.id));
 
     console.log(`Found ${messages.length} new messages out of ${allMessages.length} total`);
-
     // Process each message through email-processor
     for (const message of messages) {
       try {
