@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Mail, CheckCircle, AlertCircle } from "lucide-react";
@@ -10,6 +10,7 @@ export const GmailConnect = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [checking, setChecking] = useState(true);
+  const popupRef = useRef<Window | null>(null);
 
   useEffect(() => {
     checkGmailConnection();
@@ -49,6 +50,21 @@ export const GmailConnect = () => {
     }
   };
 
+  // Listen for OAuth popup completion
+  useEffect(() => {
+    const onMessage = (e: MessageEvent) => {
+      if (e?.data?.type === 'gmail_oauth_complete') {
+        setIsConnected(true);
+        setIsLoading(false);
+        checkGmailConnection();
+        try { popupRef.current?.close(); } catch {}
+        toast.success("Gmail connecté avec succès !");
+      }
+    };
+    window.addEventListener('message', onMessage);
+    return () => window.removeEventListener('message', onMessage);
+  }, []);
+
   const handleConnectGmail = async () => {
     setIsLoading(true);
     try {
@@ -79,6 +95,8 @@ export const GmailConnect = () => {
         toast.error("Veuillez autoriser les popups pour ce site");
         return;
       }
+      // Keep a reference so we can close it on success
+      popupRef.current = authWindow;
 
       // Poll for connection status
       const pollInterval = setInterval(async () => {
@@ -92,6 +110,7 @@ export const GmailConnect = () => {
           setIsConnected(true);
           toast.success("Gmail connecté avec succès !");
           setIsLoading(false);
+          try { popupRef.current?.close(); } catch {}
         }
       }, 2000);
 
