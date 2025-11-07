@@ -71,9 +71,9 @@ export const GmailConnect = () => {
         return;
       }
 
-      // Redirect directly to OAuth URL (no popup; force top-level navigation)
-      const targetWindow = window.top ?? window;
-      targetWindow.location.href = data.authUrl;
+      // Redirect directement (sans popup) pour éviter les erreurs de sécurité en iframe
+      window.location.assign(data.authUrl as string);
+
     } catch (error) {
       console.error('Error connecting Gmail:', error);
       toast.error("Erreur lors de la connexion Gmail");
