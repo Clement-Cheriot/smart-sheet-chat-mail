@@ -136,7 +136,7 @@ export const GmailConnect = () => {
     }
   };
 
-  const handleSyncEmails = async () => {
+  const handleSyncEmails = async (fullSync = false) => {
     setSyncing(true);
     try {
       const { data: { session } } = await supabase.auth.getSession();
@@ -150,7 +150,7 @@ export const GmailConnect = () => {
         headers: {
           Authorization: `Bearer ${session.access_token}`,
         },
-        body: { userId: session.user.id },
+        body: { userId: session.user.id, fullSync },
       });
 
       if (error) throw error;
@@ -161,7 +161,7 @@ export const GmailConnect = () => {
           headers: {
             Authorization: `Bearer ${session.access_token}`,
           },
-          body: { userId: session.user.id, forceReset: true },
+          body: { userId: session.user.id, forceReset: true, fullSync },
         });
         if (retryError) throw retryError;
         if (retryData?.success) {
@@ -266,14 +266,24 @@ export const GmailConnect = () => {
               >
                 Déconnecter Gmail
               </Button>
-              <Button
-                onClick={handleSyncEmails}
-                disabled={syncing}
-                variant="outline"
-                className="w-full"
-              >
-                {syncing ? "Synchronisation..." : "Synchroniser les emails"}
-              </Button>
+              <div className="flex gap-2">
+                <Button
+                  onClick={() => handleSyncEmails(false)}
+                  disabled={syncing}
+                  variant="outline"
+                  className="flex-1"
+                >
+                  {syncing ? "Synchronisation..." : "Sync rapide"}
+                </Button>
+                <Button
+                  onClick={() => handleSyncEmails(true)}
+                  disabled={syncing}
+                  variant="outline"
+                  className="flex-1"
+                >
+                  {syncing ? "Synchronisation..." : "Sync complète"}
+                </Button>
+              </div>
             </>
           )}
 

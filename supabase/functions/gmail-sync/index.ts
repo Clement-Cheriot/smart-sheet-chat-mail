@@ -21,7 +21,8 @@ serve(async (req) => {
     const body = await req.json();
     userId = body.userId;
     const forceReset: boolean = Boolean(body.forceReset);
-    console.log('Syncing emails for user:', userId, 'forceReset:', forceReset);
+    const fullSync: boolean = Boolean(body.fullSync);
+    console.log('Syncing emails for user:', userId, 'forceReset:', forceReset, 'fullSync:', fullSync);
 
     // Load existing state first to avoid setting last_synced_at prematurely
     const { data: stateRow } = await supabase
@@ -61,8 +62,8 @@ serve(async (req) => {
     }
 
     // Prepare sync window
-    let lastSyncedAt: string | null = stateRow?.last_synced_at ?? null;
-    let firstSync = !stateRow;
+    let lastSyncedAt: string | null = fullSync ? null : (stateRow?.last_synced_at ?? null);
+    let firstSync = !stateRow || fullSync;
 
     // Now set sync_in_progress to true (will insert row if missing)
     await supabase
@@ -137,7 +138,9 @@ serve(async (req) => {
       query += ` after:${afterEpoch}`;
     }
 
-    // Fetch messages with light pagination (max ~50 per run to avoid timeouts)
+    // Fetch messages with adaptive pagination
+    const maxMessages = fullSync ? 200 : 100;
+    const maxPages = fullSync ? 4 : 2;
     let allMessages: any[] = [];
     let pageToken: string | undefined = undefined;
     let pagesFetched = 0;
@@ -167,7 +170,7 @@ serve(async (req) => {
       allMessages.push(...batch);
       pageToken = page.nextPageToken;
       pagesFetched++;
-    } while (pageToken && allMessages.length < 50 && pagesFetched < 1);
+    } while (pageToken && allMessages.length < maxMessages && pagesFetched < maxPages);
     // Fallback if nothing found on first sync: fetch latest INBOX without query
     if (allMessages.length === 0 && firstSync) {
       pageToken = undefined;
@@ -189,7 +192,7 @@ serve(async (req) => {
         allMessages.push(...batch2);
         pageToken = page2.nextPageToken;
         pagesFetched++;
-      } while (pageToken && allMessages.length < 50 && pagesFetched < 1);
+      } while (pageToken && allMessages.length < 100 && pagesFetched < 2);
     }
 
     // Filter out already processed messages
