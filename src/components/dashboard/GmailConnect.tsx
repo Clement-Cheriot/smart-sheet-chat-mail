@@ -156,7 +156,21 @@ export const GmailConnect = () => {
       if (error) throw error;
 
       if (data?.reason === 'sync_already_in_progress') {
-        toast.error(data.message || 'Une synchronisation est déjà en cours');
+        // Tentative de réinitialisation et relance immédiate
+        const { data: retryData, error: retryError } = await supabase.functions.invoke('gmail-sync', {
+          headers: {
+            Authorization: `Bearer ${session.access_token}`,
+          },
+          body: { userId: session.user.id, forceReset: true },
+        });
+        if (retryError) throw retryError;
+        if (retryData?.success) {
+          toast.success(`${retryData.processedCount || 0} emails synchronisés`);
+        } else if (retryData?.reason === 'sync_already_in_progress') {
+          toast.error('Une synchronisation est déjà en cours, réessayez dans quelques secondes.');
+        } else {
+          toast.success(`${retryData?.processedCount || 0} emails synchronisés`);
+        }
       } else {
         toast.success(`${data.processedCount || 0} emails synchronisés`);
       }

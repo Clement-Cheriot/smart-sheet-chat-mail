@@ -20,7 +20,8 @@ serve(async (req) => {
   try {
     const body = await req.json();
     userId = body.userId;
-    console.log('Syncing emails for user:', userId);
+    const forceReset: boolean = Boolean(body.forceReset);
+    console.log('Syncing emails for user:', userId, 'forceReset:', forceReset);
 
     // Load existing state first to avoid setting last_synced_at prematurely
     const { data: stateRow } = await supabase
@@ -30,24 +31,32 @@ serve(async (req) => {
       .maybeSingle();
 
     if (stateRow?.sync_in_progress) {
-      const updatedAtMs = stateRow.updated_at ? new Date(stateRow.updated_at as string).getTime() : 0;
-      const isStale = !updatedAtMs || (Date.now() - updatedAtMs) > 3 * 60 * 1000; // >3 minutes
-      if (isStale) {
-        console.log('Stale sync flag detected. Resetting and continuing for user:', userId);
+      if (forceReset) {
+        console.log('Force reset requested. Clearing sync flag for user:', userId);
         await supabase
           .from('gmail_sync_state')
           .update({ sync_in_progress: false, updated_at: new Date().toISOString() })
           .eq('user_id', userId);
       } else {
-        console.log('Sync already in progress for user:', userId);
-        return new Response(
-          JSON.stringify({ 
-            success: false, 
-            reason: 'sync_already_in_progress',
-            message: 'Une synchronisation est déjà en cours'
-          }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
+        const updatedAtMs = stateRow.updated_at ? new Date(stateRow.updated_at as string).getTime() : 0;
+        const isStale = !updatedAtMs || (Date.now() - updatedAtMs) > 20 * 1000; // >20s
+        if (isStale) {
+          console.log('Stale sync flag detected. Resetting and continuing for user:', userId);
+          await supabase
+            .from('gmail_sync_state')
+            .update({ sync_in_progress: false, updated_at: new Date().toISOString() })
+            .eq('user_id', userId);
+        } else {
+          console.log('Sync already in progress for user:', userId);
+          return new Response(
+            JSON.stringify({ 
+              success: false, 
+              reason: 'sync_already_in_progress',
+              message: 'Une synchronisation est déjà en cours'
+            }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
       }
     }
 
