@@ -63,14 +63,28 @@ serve(async (req) => {
     const credentials = config.gmail_credentials;
     let accessToken = credentials.access_token;
 
-    // Load last sync checkpoint
-    let lastSyncedAt = new Date(Date.now() - 3600 * 1000).toISOString(); // default to last hour
+    // Load last sync checkpoint and detect first sync
+    let lastSyncedAt = null as string | null;
+    let firstSync = false;
     const { data: state } = await supabase
       .from('gmail_sync_state')
       .select('last_synced_at')
       .eq('user_id', userId)
       .maybeSingle();
-    if (state?.last_synced_at) lastSyncedAt = state.last_synced_at;
+    if (state?.last_synced_at) {
+      lastSyncedAt = state.last_synced_at;
+    } else {
+      // No previous sync state, check if any emails were processed
+      const { count } = await supabase
+        .from('email_history')
+        .select('id', { count: 'exact', head: true })
+        .eq('user_id', userId);
+      firstSync = (count ?? 0) === 0;
+      // If not first sync but no state, default to last 30 days to be safe
+      if (!firstSync) {
+        lastSyncedAt = new Date(Date.now() - 30 * 24 * 3600 * 1000).toISOString();
+      }
+    }
 
     // Get all processed message IDs to avoid duplicates
     const { data: processedEmails } = await supabase
@@ -80,42 +94,49 @@ serve(async (req) => {
 
     const processedIds = new Set(processedEmails?.map(e => e.gmail_message_id) || []);
 
-    // Fetch recent messages from Gmail since last sync (inbox only, exclude drafts and spam)
-    const afterEpoch = Math.floor(new Date(lastSyncedAt).getTime() / 1000);
-    const gmailUrl = `https://gmail.googleapis.com/gmail/v1/users/me/messages?q=in:inbox -in:drafts -in:spam after:${afterEpoch}&maxResults=50`;
-
-    let response = await fetch(gmailUrl, {
-      headers: { 'Authorization': `Bearer ${accessToken}` },
-    });
-
-    // Refresh token if expired
-    if (!response.ok && (response.status === 401 || response.status === 403)) {
-      console.log('Refreshing access token...');
-      accessToken = await refreshAccessToken(credentials);
-      
-      // Update the access token in database
-      await supabase
-        .from('user_api_configs')
-        .update({
-          gmail_credentials: {
-            ...credentials,
-            access_token: accessToken
-          }
-        })
-        .eq('user_id', userId);
-      
-      response = await fetch(gmailUrl, {
-        headers: { 'Authorization': `Bearer ${accessToken}` },
-      });
+    // Build Gmail query
+    const baseQuery = 'in:inbox -in:drafts -in:spam';
+    let query = baseQuery;
+    if (firstSync) {
+      // Initial import: up to ~1 year of messages (limited below to 200)
+      query += ' newer_than:1y';
+    } else if (lastSyncedAt) {
+      const afterEpoch = Math.floor(new Date(lastSyncedAt).getTime() / 1000);
+      query += ` after:${afterEpoch}`;
     }
 
-    if (!response.ok) {
-      throw new Error(`Gmail API error: ${response.status}`);
-    }
+    // Fetch messages with light pagination (max ~200)
+    let allMessages: any[] = [];
+    let pageToken: string | undefined = undefined;
+    let pagesFetched = 0;
+    do {
+      const url: string = `https://gmail.googleapis.com/gmail/v1/users/me/messages?q=${encodeURIComponent(query)}&maxResults=50${pageToken ? `&pageToken=${pageToken}` : ''}`;
+      let response: Response = await fetch(url, { headers: { 'Authorization': `Bearer ${accessToken}` } });
 
-    const data = await response.json();
-    const allMessages = data.messages || [];
-    
+      // Refresh token if expired
+      if (!response.ok && (response.status === 401 || response.status === 403)) {
+        console.log('Refreshing access token...');
+        accessToken = await refreshAccessToken(credentials);
+        await supabase
+          .from('user_api_configs')
+          .update({
+            gmail_credentials: { ...credentials, access_token: accessToken }
+          })
+          .eq('user_id', userId);
+        response = await fetch(url, { headers: { 'Authorization': `Bearer ${accessToken}` } });
+      }
+
+      if (!response.ok) {
+        throw new Error(`Gmail API error: ${response.status}`);
+      }
+
+      const page: any = await response.json();
+      const batch = page.messages || [];
+      allMessages.push(...batch);
+      pageToken = page.nextPageToken;
+      pagesFetched++;
+    } while (pageToken && allMessages.length < 200 && pagesFetched < 4);
+
     // Filter out already processed messages
     const messages = allMessages.filter((msg: any) => !processedIds.has(msg.id));
 

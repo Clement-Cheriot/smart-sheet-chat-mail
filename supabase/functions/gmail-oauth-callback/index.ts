@@ -21,7 +21,7 @@ serve(async (req) => {
           })();
         </script>
       </body></html>`;
-      return new Response(html, { headers: { 'Content-Type': 'text/html' } });
+      return new Response(html, { headers: { 'Content-Type': 'text/html; charset=utf-8' } });
     }
 
     if (!code || !state) {
@@ -118,7 +118,7 @@ serve(async (req) => {
         })();
       </script>
     </body></html>`;
-    return new Response(html, { headers: { 'Content-Type': 'text/html' } });
+    return new Response(html, { headers: { 'Content-Type': 'text/html; charset=utf-8' } });
   } catch (error) {
     console.error('Error in gmail-oauth-callback:', error);
     
@@ -135,6 +135,6 @@ serve(async (req) => {
         })();
       </script>
     </body></html>`;
-    return new Response(html, { headers: { 'Content-Type': 'text/html' } });
+    return new Response(html, { headers: { 'Content-Type': 'text/html; charset=utf-8' } });
   }
 });
