@@ -165,6 +165,29 @@ export const GmailConnect = () => {
     }
   };
 
+  const handleDisconnectGmail = async () => {
+    setIsLoading(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        toast.error("Vous devez être connecté");
+        return;
+      }
+      const { error } = await supabase
+        .from('user_api_configs')
+        .update({ gmail_credentials: null })
+        .eq('user_id', session.user.id);
+      if (error) throw error;
+      setIsConnected(false);
+      toast.success("Gmail déconnecté");
+    } catch (err) {
+      console.error('Error disconnecting Gmail:', err);
+      toast.error("Erreur lors de la déconnexion");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   if (checking) {
     return (
       <Card>
@@ -206,23 +229,35 @@ export const GmailConnect = () => {
         )}
 
         <div className="space-y-2">
-          <Button
-            onClick={handleConnectGmail}
-            disabled={isLoading}
-            className="w-full"
-          >
-            {isLoading ? "Connexion..." : isConnected ? "Reconnecter Gmail" : "Connecter Gmail"}
-          </Button>
-
-          {isConnected && (
+          {!isConnected && (
             <Button
-              onClick={handleSyncEmails}
-              disabled={syncing}
-              variant="outline"
+              onClick={handleConnectGmail}
+              disabled={isLoading}
               className="w-full"
             >
-              {syncing ? "Synchronisation..." : "Synchroniser les emails"}
+              {isLoading ? "Connexion..." : "Connecter Gmail"}
             </Button>
+          )}
+
+          {isConnected && (
+            <>
+              <Button
+                onClick={handleDisconnectGmail}
+                disabled={isLoading}
+                variant="destructive"
+                className="w-full"
+              >
+                Déconnecter Gmail
+              </Button>
+              <Button
+                onClick={handleSyncEmails}
+                disabled={syncing}
+                variant="outline"
+                className="w-full"
+              >
+                {syncing ? "Synchronisation..." : "Synchroniser les emails"}
+              </Button>
+            </>
           )}
 
           <p className="text-xs text-muted-foreground">
