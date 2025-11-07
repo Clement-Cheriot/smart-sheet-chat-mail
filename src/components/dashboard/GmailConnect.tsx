@@ -33,12 +33,18 @@ export const GmailConnect = () => {
 
   const checkGmailConnection = async () => {
     try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        setIsConnected(false);
+        return;
+      }
       const { data, error } = await supabase
         .from('user_api_configs')
         .select('gmail_credentials')
+        .eq('user_id', session.user.id)
         .maybeSingle();
 
-      if (error && error.code !== 'PGRST116') {
+      if (error && (error as any).code !== 'PGRST116') {
         console.error('Error checking Gmail connection:', error);
       }
 
@@ -100,9 +106,12 @@ export const GmailConnect = () => {
 
       // Poll for connection status
       const pollInterval = setInterval(async () => {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) return;
         const { data: configData } = await supabase
           .from('user_api_configs')
           .select('gmail_credentials')
+          .eq('user_id', session.user.id)
           .maybeSingle();
 
         if (configData?.gmail_credentials) {
