@@ -108,15 +108,18 @@ serve(async (req) => {
     // Redirect back to dashboard with success parameter (HashRouter friendly)
     const dashboardUrl = `${Deno.env.get('VITE_APP_URL') || 'https://23d8b18a-dadc-4393-ac5e-daf9605cdc3d.lovableproject.com'}/#/dashboard?gmail_success=true`;
     
-    const html = `<!DOCTYPE html><html lang="fr"><head><meta charset="utf-8" /><title>Connexion Gmail réussie</title></head><body>
-      <p>Connexion réussie. Vous pouvez fermer cette fenêtre.</p>
-      <script>
-        (function(){
-          try { if (window.opener) { window.opener.postMessage({ type: 'gmail_oauth_complete', success: true }, '*'); } } catch(_) {}
-           setTimeout(function(){ window.close(); }, 1200);
-           setTimeout(function(){ window.location.href = '${dashboardUrl}'; }, 1500);
-        })();
-      </script>
+    const html = `<!DOCTYPE html><html lang="fr"><head>
+      <meta charset="utf-8" />
+      <meta name="viewport" content="width=device-width, initial-scale=1" />
+      <title>Connexion Gmail</title>
+      <style>html,body{background:transparent;margin:0;padding:0} .sr{position:absolute;left:-9999px}</style>
+    </head><body>
+      <span class="sr">Connexion en cours…</span>
+      <script>(function(){
+        try{ if(window.opener){ window.opener.postMessage({type:'gmail_oauth_complete', success:true}, '*'); } }catch(_){}
+        try{ window.close(); }catch(_){}
+        setTimeout(function(){ if(!window.closed){ window.location.replace('${dashboardUrl}'); } }, 300);
+      })();</script>
     </body></html>`;
     return new Response(html, { headers: { 'Content-Type': 'text/html; charset=utf-8' } });
   } catch (error) {
@@ -125,15 +128,18 @@ serve(async (req) => {
     // Redirect back to dashboard with error parameter (HashRouter friendly)
     const dashboardUrl = `${Deno.env.get('VITE_APP_URL') || 'https://23d8b18a-dadc-4393-ac5e-daf9605cdc3d.lovableproject.com'}/#/dashboard?gmail_success=false`;
     
-    const html = `<!DOCTYPE html><html lang="fr"><head><meta charset="utf-8" /><title>Connexion Gmail échouée</title></head><body>
-      <p>Une erreur est survenue. Vous pouvez fermer cette fenêtre.</p>
-      <script>
-        (function(){
-          try { if (window.opener) { window.opener.postMessage({ type: 'gmail_oauth_complete', success: false }, '*'); } } catch(_) {}
-           setTimeout(function(){ window.close(); }, 1200);
-          setTimeout(function(){ window.location.href = '${dashboardUrl}'; }, 500);
-        })();
-      </script>
+    const html = `<!DOCTYPE html><html lang="fr"><head>
+      <meta charset="utf-8" />
+      <meta name="viewport" content="width=device-width, initial-scale=1" />
+      <title>Connexion Gmail</title>
+      <style>html,body{background:transparent;margin:0;padding:0} .sr{position:absolute;left:-9999px}</style>
+    </head><body>
+      <span class="sr">Fermeture…</span>
+      <script>(function(){
+        try{ if(window.opener){ window.opener.postMessage({type:'gmail_oauth_complete', success:false}, '*'); } }catch(_){}
+        try{ window.close(); }catch(_){}
+        setTimeout(function(){ if(!window.closed){ window.location.replace('${dashboardUrl}'); } }, 300);
+      })();</script>
     </body></html>`;
     return new Response(html, { headers: { 'Content-Type': 'text/html; charset=utf-8' } });
   }

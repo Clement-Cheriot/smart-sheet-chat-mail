@@ -25,20 +25,30 @@ serve(async (req) => {
     // Load existing state first to avoid setting last_synced_at prematurely
     const { data: stateRow } = await supabase
       .from('gmail_sync_state')
-      .select('last_synced_at, sync_in_progress')
+      .select('last_synced_at, sync_in_progress, updated_at')
       .eq('user_id', userId)
       .maybeSingle();
 
     if (stateRow?.sync_in_progress) {
-      console.log('Sync already in progress for user:', userId);
-      return new Response(
-        JSON.stringify({ 
-          success: false, 
-          reason: 'sync_already_in_progress',
-          message: 'Une synchronisation est déjà en cours'
-        }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      const updatedAtMs = stateRow.updated_at ? new Date(stateRow.updated_at as string).getTime() : 0;
+      const isStale = !updatedAtMs || (Date.now() - updatedAtMs) > 3 * 60 * 1000; // >3 minutes
+      if (isStale) {
+        console.log('Stale sync flag detected. Resetting and continuing for user:', userId);
+        await supabase
+          .from('gmail_sync_state')
+          .update({ sync_in_progress: false, updated_at: new Date().toISOString() })
+          .eq('user_id', userId);
+      } else {
+        console.log('Sync already in progress for user:', userId);
+        return new Response(
+          JSON.stringify({ 
+            success: false, 
+            reason: 'sync_already_in_progress',
+            message: 'Une synchronisation est déjà en cours'
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
     }
 
     // Prepare sync window
@@ -49,7 +59,7 @@ serve(async (req) => {
     await supabase
       .from('gmail_sync_state')
       .upsert(
-        { user_id: userId, sync_in_progress: true },
+        { user_id: userId, sync_in_progress: true, updated_at: new Date().toISOString() },
         { onConflict: 'user_id' }
       );
 
@@ -243,7 +253,8 @@ serve(async (req) => {
         { 
           user_id: userId, 
           last_synced_at: new Date().toISOString(),
-          sync_in_progress: false 
+          sync_in_progress: false,
+          updated_at: new Date().toISOString()
         },
         { onConflict: 'user_id' }
       );
@@ -264,7 +275,7 @@ serve(async (req) => {
       try {
         await supabase
           .from('gmail_sync_state')
-          .update({ sync_in_progress: false })
+          .update({ sync_in_progress: false, updated_at: new Date().toISOString() })
           .eq('user_id', userId);
       } catch (clearError) {
         console.error('Error clearing sync flag:', clearError);
