@@ -10,10 +10,18 @@ serve(async (req) => {
 
     if (error) {
       console.error('OAuth error:', error);
-      return new Response(
-        `<html><body><h1>Erreur d'autorisation</h1><p>${error}</p><script>window.close();</script></body></html>`,
-        { headers: { 'Content-Type': 'text/html' } }
-      );
+      const dashboardUrl = `${Deno.env.get('VITE_APP_URL') || 'https://23d8b18a-dadc-4393-ac5e-daf9605cdc3d.lovableproject.com'}/#/dashboard?gmail_success=false`;
+      const html = `<!DOCTYPE html><html lang="fr"><head><meta charset="utf-8" /><title>Erreur d'autorisation</title></head><body>
+        <p>Erreur d'autorisation: ${error}. Vous pouvez fermer cette fenêtre.</p>
+        <script>
+          (function(){
+            try { if (window.opener) { window.opener.postMessage({ type: 'gmail_oauth_complete', success: false }, '*'); } } catch(_) {}
+            setTimeout(function(){ window.close(); }, 100);
+            setTimeout(function(){ window.location.href = '${dashboardUrl}'; }, 500);
+          })();
+        </script>
+      </body></html>`;
+      return new Response(html, { headers: { 'Content-Type': 'text/html' } });
     }
 
     if (!code || !state) {
@@ -100,23 +108,33 @@ serve(async (req) => {
     // Redirect back to dashboard with success parameter (HashRouter friendly)
     const dashboardUrl = `${Deno.env.get('VITE_APP_URL') || 'https://23d8b18a-dadc-4393-ac5e-daf9605cdc3d.lovableproject.com'}/#/dashboard?gmail_success=true`;
     
-    return new Response(null, {
-      status: 302,
-      headers: {
-        'Location': dashboardUrl,
-      },
-    });
+    const html = `<!DOCTYPE html><html lang="fr"><head><meta charset="utf-8" /><title>Connexion Gmail réussie</title></head><body>
+      <p>Connexion réussie. Vous pouvez fermer cette fenêtre.</p>
+      <script>
+        (function(){
+          try { if (window.opener) { window.opener.postMessage({ type: 'gmail_oauth_complete', success: true }, '*'); } } catch(_) {}
+          setTimeout(function(){ window.close(); }, 100);
+          setTimeout(function(){ window.location.href = '${dashboardUrl}'; }, 500);
+        })();
+      </script>
+    </body></html>`;
+    return new Response(html, { headers: { 'Content-Type': 'text/html' } });
   } catch (error) {
     console.error('Error in gmail-oauth-callback:', error);
     
     // Redirect back to dashboard with error parameter (HashRouter friendly)
     const dashboardUrl = `${Deno.env.get('VITE_APP_URL') || 'https://23d8b18a-dadc-4393-ac5e-daf9605cdc3d.lovableproject.com'}/#/dashboard?gmail_success=false`;
     
-    return new Response(null, {
-      status: 302,
-      headers: {
-        'Location': dashboardUrl,
-      },
-    });
+    const html = `<!DOCTYPE html><html lang="fr"><head><meta charset="utf-8" /><title>Connexion Gmail échouée</title></head><body>
+      <p>Une erreur est survenue. Vous pouvez fermer cette fenêtre.</p>
+      <script>
+        (function(){
+          try { if (window.opener) { window.opener.postMessage({ type: 'gmail_oauth_complete', success: false }, '*'); } } catch(_) {}
+          setTimeout(function(){ window.close(); }, 100);
+          setTimeout(function(){ window.location.href = '${dashboardUrl}'; }, 500);
+        })();
+      </script>
+    </body></html>`;
+    return new Response(html, { headers: { 'Content-Type': 'text/html' } });
   }
 });
