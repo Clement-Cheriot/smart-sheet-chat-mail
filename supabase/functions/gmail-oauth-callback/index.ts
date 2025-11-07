@@ -97,8 +97,8 @@ serve(async (req) => {
 
     console.log('Gmail credentials saved successfully');
 
-    // Redirect back to dashboard with success parameter
-    const dashboardUrl = `${Deno.env.get('VITE_APP_URL') || 'https://23d8b18a-dadc-4393-ac5e-daf9605cdc3d.lovableproject.com'}/dashboard?gmail_success=true`;
+    // Redirect back to dashboard with success parameter (HashRouter friendly)
+    const dashboardUrl = `${Deno.env.get('VITE_APP_URL') || 'https://23d8b18a-dadc-4393-ac5e-daf9605cdc3d.lovableproject.com'}/#/dashboard?gmail_success=true`;
     
     return new Response(null, {
       status: 302,
@@ -109,8 +109,8 @@ serve(async (req) => {
   } catch (error) {
     console.error('Error in gmail-oauth-callback:', error);
     
-    // Redirect back to dashboard with error parameter
-    const dashboardUrl = `${Deno.env.get('VITE_APP_URL') || 'https://23d8b18a-dadc-4393-ac5e-daf9605cdc3d.lovableproject.com'}/dashboard?gmail_success=false`;
+    // Redirect back to dashboard with error parameter (HashRouter friendly)
+    const dashboardUrl = `${Deno.env.get('VITE_APP_URL') || 'https://23d8b18a-dadc-4393-ac5e-daf9605cdc3d.lovableproject.com'}/#/dashboard?gmail_success=false`;
     
     return new Response(null, {
       status: 302,

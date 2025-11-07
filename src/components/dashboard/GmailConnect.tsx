@@ -14,18 +14,19 @@ export const GmailConnect = () => {
   useEffect(() => {
     checkGmailConnection();
     
-    // Check for OAuth success in URL params
-    const urlParams = new URLSearchParams(window.location.search);
+    // Check for OAuth success in URL params (supports hash routing)
+    const search = window.location.search || (window.location.hash.includes('?') ? '?' + window.location.hash.split('?')[1] : '');
+    const urlParams = new URLSearchParams(search);
     const gmailSuccess = urlParams.get('gmail_success');
     
     if (gmailSuccess === 'true') {
       setIsConnected(true);
       toast.success("Gmail connecté avec succès !");
-      // Clean up URL
-      window.history.replaceState({}, '', '/dashboard');
+      // Clean up URL for HashRouter
+      window.history.replaceState({}, '', '/#/dashboard');
     } else if (gmailSuccess === 'false') {
       toast.error("Erreur de connexion Gmail");
-      window.history.replaceState({}, '', '/dashboard');
+      window.history.replaceState({}, '', '/#/dashboard');
     }
   }, []);
 
