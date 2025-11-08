@@ -376,16 +376,15 @@ export const EmailHistory = () => {
             <CollapsibleContent>
               <CardContent className="pt-4 space-y-4 border-t">
                 {email.ai_reasoning && (
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2 text-sm font-medium">
-                      <Brain className="h-4 w-4" />
-                      Raisonnement de l'IA
-                    </div>
-                    <p className="text-sm text-muted-foreground pl-6">
-                      {email.ai_reasoning.substring(0, 150)}
-                      {email.ai_reasoning.length > 150 ? '...' : ''}
-                    </p>
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2 text-sm font-medium">
+                    <Brain className="h-4 w-4" />
+                    Raisonnement de l'IA
                   </div>
+                  <p className="text-sm text-muted-foreground pl-6">
+                    {email.ai_reasoning}
+                  </p>
+                </div>
                 )}
 
                 {email.suggested_new_label && (

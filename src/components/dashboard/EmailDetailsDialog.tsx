@@ -139,12 +139,11 @@ export const EmailDetailsDialog = ({ email, open, onOpenChange, onEmailUpdated }
           {/* Raisonnement IA */}
           <Alert>
             <Bot className="h-4 w-4" />
-            <AlertDescription>
+          <AlertDescription>
               <div className="space-y-2">
                 <p className="font-medium">Raisonnement IA</p>
                 <p className="text-sm">
-                  {((aiAnalysis.reasoning || email.ai_reasoning || '').substring(0, 150))}
-                  {(aiAnalysis.reasoning || email.ai_reasoning || '').length > 150 ? '...' : ''}
+                  {aiAnalysis.reasoning || email.ai_reasoning || 'Aucun raisonnement disponible'}
                 </p>
                 <div className="flex gap-4 text-xs text-muted-foreground mt-2">
                   {(email.confidence !== undefined && email.confidence !== null) && (

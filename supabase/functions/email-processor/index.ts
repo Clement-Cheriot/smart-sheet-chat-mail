@@ -279,6 +279,7 @@ serve(async (req) => {
         draft_created: false,
         body_summary: aiAnalysis.body_summary || emailData.body?.substring(0, 200),
         ai_reasoning: aiAnalysis.reasoning,
+        confidence: aiAnalysis.confidence || 50,
         suggested_new_label: suggestedNewLabel,
         rule_reinforcement_suggestion: ruleReinforcement,
         actions_taken: actionsTaken,
@@ -582,19 +583,20 @@ Fournis une réponse JSON avec:
 2. key_entities: tableau des noms importants, dates, montants
 3. suggested_action: reply/forward/archive/review/urgent_response
 4. body_summary: Résumé bref en 2-3 phrases EN FRANÇAIS
-5. reasoning: Explique pourquoi tu as choisi ces 2 labels EN FRANÇAIS (mentionne les règles/feedbacks utilisés)
-6. category_label: Le label de catégorie choisi (OBLIGATOIRE)
-7. action_label: Le label d'action choisi avec préfixe "Actions/" (OBLIGATOIRE)
-8. is_phishing: boolean - true si c'est du phishing détecté
-9. is_spam: boolean - true si c'est du spam
-10. matched_label: Si une règle existante correspond, mets son label ici (sinon null)
-11. suggested_label: Si matched_label est null, suggère un nouveau label thématique
-12. needs_calendar_action: boolean
-13. calendar_details: Si needs_calendar_action=true, {title, date (ISO), duration_minutes, location?, attendees?}
-14. is_urgent_whatsapp: boolean
-15. needs_response: boolean
-16. response_type: "none" | "draft" | "auto_reply"
-17. response_reasoning: string EN FRANÇAIS`;
+5. reasoning: Explique BRIÈVEMENT pourquoi tu as choisi ces 2 labels EN FRANÇAIS (1-2 phrases maximum, sois concis)
+6. confidence: échelle de 0 à 100 représentant ta confiance dans le choix des labels
+7. category_label: Le label de catégorie choisi (OBLIGATOIRE)
+8. action_label: Le label d'action choisi avec préfixe "Actions/" (OBLIGATOIRE)
+9. is_phishing: boolean - true si c'est du phishing détecté
+10. is_spam: boolean - true si c'est du spam
+11. matched_label: Si une règle existante correspond, mets son label ici (sinon null)
+12. suggested_label: Si matched_label est null, suggère un nouveau label thématique
+13. needs_calendar_action: boolean
+14. calendar_details: Si needs_calendar_action=true, {title, date (ISO), duration_minutes, location?, attendees?}
+15. is_urgent_whatsapp: boolean
+16. needs_response: boolean
+17. response_type: "none" | "draft" | "auto_reply"
+18. response_reasoning: string EN FRANÇAIS`;
 
     const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
@@ -644,6 +646,7 @@ Fournis une réponse JSON avec:
       suggested_action: 'review',
       body_summary: body.substring(0, 200),
       reasoning: 'AI analysis unavailable, using defaults',
+      confidence: 50,
       category_label: 'Needs Manual Review',
       action_label: 'Actions/Revue Manuelle',
       is_phishing: false,
