@@ -12,6 +12,7 @@ import { Mail, Tag, Clock, ChevronDown, Check, X, Lightbulb, Brain, Calendar, Me
 import { EmailActionsDialog } from './EmailActionsDialog';
 import { EmailDetailsDialog } from './EmailDetailsDialog';
 import { ChangeLabelDialog } from './ChangeLabelDialog';
+import { RuleReinforcementDialog } from './RuleReinforcementDialog';
 import { 
   DropdownMenu,
   DropdownMenuContent,
@@ -54,6 +55,7 @@ export const EmailHistory = () => {
   const [actionsDialogOpen, setActionsDialogOpen] = useState(false);
   const [detailsDialogOpen, setDetailsDialogOpen] = useState(false);
   const [changeLabelDialogOpen, setChangeLabelDialogOpen] = useState(false);
+  const [ruleReinforcementDialogOpen, setRuleReinforcementDialogOpen] = useState(false);
   const { user } = useAuth();
 
   useEffect(() => {
@@ -99,29 +101,6 @@ export const EmailHistory = () => {
       });
     } catch (error) {
       console.error('Error validating label:', error);
-      toast({ title: 'Erreur', description: 'Impossible de valider', variant: 'destructive' });
-    }
-  };
-
-  const validateRuleReinforcement = async (emailId: string, accepted: boolean) => {
-    try {
-      const { error } = await supabase
-        .from('email_history')
-        .update({ rule_reinforcement_status: accepted ? 'accepted' : 'rejected' })
-        .eq('id', emailId);
-
-      if (error) throw error;
-
-      setEmails(emails.map(e => 
-        e.id === emailId ? { ...e, rule_reinforcement_status: accepted ? 'accepted' : 'rejected' } : e
-      ));
-
-      toast({ 
-        title: 'Succès', 
-        description: accepted ? 'Suggestion acceptée' : 'Suggestion rejetée' 
-      });
-    } catch (error) {
-      console.error('Error validating rule:', error);
       toast({ title: 'Erreur', description: 'Impossible de valider', variant: 'destructive' });
     }
   };
@@ -364,6 +343,25 @@ export const EmailHistory = () => {
                       </Button>
                     </div>
                   )}
+
+                  {email.rule_reinforcement && 
+                   (email.rule_reinforcement.add_keywords?.length > 0 || email.rule_reinforcement.add_domains?.length > 0) && (
+                    <div className="flex items-center gap-2 text-xs">
+                      <Lightbulb className="h-3 w-3 text-blue-500" />
+                      <span className="font-medium">Suggestion de renforcement de règle :</span>
+                      <Button 
+                        variant="link" 
+                        size="sm" 
+                        className="h-auto p-0 text-xs"
+                        onClick={() => {
+                          setSelectedEmail(email);
+                          setRuleReinforcementDialogOpen(true);
+                        }}
+                      >
+                        Voir détails
+                      </Button>
+                    </div>
+                  )}
                 </div>
               </div>
             </CardHeader>
@@ -383,7 +381,10 @@ export const EmailHistory = () => {
                       <Brain className="h-4 w-4" />
                       Raisonnement de l'IA
                     </div>
-                    <p className="text-sm text-muted-foreground pl-6">{email.ai_reasoning}</p>
+                    <p className="text-sm text-muted-foreground pl-6">
+                      {email.ai_reasoning.substring(0, 150)}
+                      {email.ai_reasoning.length > 150 ? '...' : ''}
+                    </p>
                   </div>
                 )}
 
@@ -424,44 +425,6 @@ export const EmailHistory = () => {
                     </div>
                   </div>
                 )}
-
-                {email.rule_reinforcement_suggestion && (
-                  <div className="space-y-2 p-3 bg-accent/50 rounded-lg">
-                    <div className="flex items-center gap-2 text-sm font-medium">
-                      <Lightbulb className="h-4 w-4 text-blue-500" />
-                      Suggestion de renforcement des règles
-                    </div>
-                    <div className="flex items-center justify-between pl-6">
-                      <p className="text-sm">{email.rule_reinforcement_suggestion}</p>
-                      {email.rule_reinforcement_status === 'pending' && (
-                        <div className="flex gap-2">
-                          <Button 
-                            size="sm" 
-                            variant="outline"
-                            onClick={() => validateRuleReinforcement(email.id, true)}
-                          >
-                            <Check className="h-3 w-3 mr-1" />
-                            Accepter
-                          </Button>
-                          <Button 
-                            size="sm" 
-                            variant="outline"
-                            onClick={() => validateRuleReinforcement(email.id, false)}
-                          >
-                            <X className="h-3 w-3 mr-1" />
-                            Refuser
-                          </Button>
-                        </div>
-                      )}
-                      {email.rule_reinforcement_status === 'accepted' && (
-                        <Badge variant="default">Accepté</Badge>
-                      )}
-                      {email.rule_reinforcement_status === 'rejected' && (
-                        <Badge variant="destructive">Refusé</Badge>
-                      )}
-                    </div>
-                  </div>
-                )}
               </CardContent>
             </CollapsibleContent>
           </Collapsible>
@@ -487,6 +450,12 @@ export const EmailHistory = () => {
             open={changeLabelDialogOpen}
             onOpenChange={setChangeLabelDialogOpen}
             onEmailUpdated={loadEmails}
+          />
+          <RuleReinforcementDialog
+            email={selectedEmail}
+            open={ruleReinforcementDialogOpen}
+            onOpenChange={setRuleReinforcementDialogOpen}
+            onUpdated={loadEmails}
           />
         </>
       )}

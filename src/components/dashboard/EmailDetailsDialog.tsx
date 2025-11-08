@@ -11,8 +11,6 @@ import {
   Tag, 
   AlertCircle,
   Lightbulb,
-  TrendingUp,
-  Globe,
   FileText,
   Bot,
   MessageSquare
@@ -32,7 +30,6 @@ export const EmailDetailsDialog = ({ email, open, onOpenChange, onEmailUpdated }
   if (!email) return null;
 
   const aiAnalysis = email.ai_analysis || {};
-  const ruleReinforcement = email.rule_reinforcement;
   const calendarDetails = email.calendar_details;
 
   const handleCreateLabel = async (labelName: string) => {
@@ -65,78 +62,6 @@ export const EmailDetailsDialog = ({ email, open, onOpenChange, onEmailUpdated }
         variant: "destructive",
         title: "Erreur",
         description: "Impossible de créer le label.",
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleEnrichRule = async (type: 'keywords' | 'domains') => {
-    if (!ruleReinforcement) return;
-
-    setLoading(true);
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('User not authenticated');
-
-      const { data: existingRule, error: fetchError } = await supabase
-        .from('email_rules')
-        .select('*')
-        .eq('user_id', user.id)
-        .eq('label_to_apply', ruleReinforcement.label)
-        .maybeSingle();
-
-      if (fetchError) throw fetchError;
-      if (!existingRule) {
-        toast({
-          variant: "destructive",
-          title: "Erreur",
-          description: "Règle introuvable.",
-        });
-        return;
-      }
-
-      let updateData: any = {
-        updated_at: new Date().toISOString()
-      };
-
-      if (type === 'keywords') {
-        const newKeywords = [...new Set([
-          ...(existingRule.keywords || []),
-          ...ruleReinforcement.add_keywords
-        ])];
-        updateData.keywords = newKeywords;
-        updateData.description = existingRule.description 
-          ? `${existingRule.description}\n[${new Date().toISOString().split('T')[0]}] Règle enrichie automatiquement - mots-clés: ${ruleReinforcement.add_keywords.join(', ')}`
-          : `[${new Date().toISOString().split('T')[0]}] Règle enrichie automatiquement - mots-clés: ${ruleReinforcement.add_keywords.join(', ')}`;
-      } else {
-        const existingDomains = existingRule.sender_pattern?.split('|') || [];
-        const newDomains = [...new Set([...existingDomains, ...ruleReinforcement.add_domains])];
-        updateData.sender_pattern = newDomains.join('|');
-        updateData.description = existingRule.description
-          ? `${existingRule.description}\n[${new Date().toISOString().split('T')[0]}] Règle enrichie automatiquement - domaines: ${ruleReinforcement.add_domains.join(', ')}`
-          : `[${new Date().toISOString().split('T')[0]}] Règle enrichie automatiquement - domaines: ${ruleReinforcement.add_domains.join(', ')}`;
-      }
-
-      const { error: updateError } = await supabase
-        .from('email_rules')
-        .update(updateData)
-        .eq('id', existingRule.id);
-
-      if (updateError) throw updateError;
-
-      toast({
-        title: "Règle enrichie",
-        description: `Les ${type === 'keywords' ? 'mots-clés' : 'domaines'} ont été ajoutés.`,
-      });
-
-      onEmailUpdated();
-    } catch (error: any) {
-      console.error('Error enriching rule:', error);
-      toast({
-        variant: "destructive",
-        title: "Erreur",
-        description: "Impossible d'enrichir la règle.",
       });
     } finally {
       setLoading(false);
@@ -217,13 +142,18 @@ export const EmailDetailsDialog = ({ email, open, onOpenChange, onEmailUpdated }
             <AlertDescription>
               <div className="space-y-2">
                 <p className="font-medium">Raisonnement IA</p>
-                <p className="text-sm">{aiAnalysis.reasoning || email.ai_reasoning}</p>
-                {email.confidence && (
-                  <div className="flex gap-4 text-xs text-muted-foreground mt-2">
+                <p className="text-sm">
+                  {((aiAnalysis.reasoning || email.ai_reasoning || '').substring(0, 150))}
+                  {(aiAnalysis.reasoning || email.ai_reasoning || '').length > 150 ? '...' : ''}
+                </p>
+                <div className="flex gap-4 text-xs text-muted-foreground mt-2">
+                  {(email.confidence !== undefined && email.confidence !== null) && (
                     <span>Confiance: {email.confidence}%</span>
+                  )}
+                  {(email.priority_score || aiAnalysis.urgency) && (
                     <span>Urgence: {email.priority_score || aiAnalysis.urgency}/10</span>
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
             </AlertDescription>
           </Alert>
@@ -275,34 +205,6 @@ export const EmailDetailsDialog = ({ email, open, onOpenChange, onEmailUpdated }
               </Button>
             )}
 
-            {/* Enrichir la règle avec mots-clés */}
-            {ruleReinforcement?.add_keywords && ruleReinforcement.add_keywords.length > 0 && (
-              <Button 
-                variant="outline" 
-                size="sm"
-                onClick={() => handleEnrichRule('keywords')}
-                disabled={loading}
-                className="w-full justify-start"
-              >
-                <TrendingUp className="mr-2 h-4 w-4" />
-                Ajouter mots-clés: {ruleReinforcement.add_keywords.join(', ')}
-              </Button>
-            )}
-
-            {/* Enrichir la règle avec domaines */}
-            {ruleReinforcement?.add_domains && ruleReinforcement.add_domains.length > 0 && (
-              <Button 
-                variant="outline" 
-                size="sm"
-                onClick={() => handleEnrichRule('domains')}
-                disabled={loading}
-                className="w-full justify-start"
-              >
-                <Globe className="mr-2 h-4 w-4" />
-                Ajouter domaines: {ruleReinforcement.add_domains.join(', ')}
-              </Button>
-            )}
-
             {/* Créer événement calendrier */}
             {email.needs_calendar_action && calendarDetails && (
               <Button 
@@ -317,9 +219,7 @@ export const EmailDetailsDialog = ({ email, open, onOpenChange, onEmailUpdated }
               </Button>
             )}
 
-            {!aiAnalysis.suggested_label && 
-             (!ruleReinforcement || (ruleReinforcement.add_keywords?.length === 0 && ruleReinforcement.add_domains?.length === 0)) && 
-             !email.needs_calendar_action && (
+            {!aiAnalysis.suggested_label && !email.needs_calendar_action && (
               <p className="text-sm text-muted-foreground">Aucune suggestion disponible</p>
             )}
           </div>
