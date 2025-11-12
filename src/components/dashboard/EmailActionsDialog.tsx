@@ -275,6 +275,34 @@ export const EmailActionsDialog = ({ email, open, onOpenChange, onUpdate }: Emai
     }
   };
 
+  const handleAddToCalendar = async () => {
+    setProcessing(true);
+    try {
+      const { error } = await supabase.functions.invoke('gmail-calendar', {
+        body: {
+          userId: user?.id,
+          messageId: email.gmail_message_id,
+          emailContext: {
+            subject: email.subject,
+            body: email.body_summary,
+            sender: email.sender,
+            receivedAt: email.received_at
+          }
+        }
+      });
+
+      if (error) throw error;
+
+      toast({ title: 'Succès', description: 'Événement ajouté au calendrier' });
+      onUpdate();
+      onOpenChange(false);
+    } catch (error: any) {
+      toast({ title: 'Erreur', description: error.message, variant: 'destructive' });
+    } finally {
+      setProcessing(false);
+    }
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-lg">
@@ -463,6 +491,17 @@ export const EmailActionsDialog = ({ email, open, onOpenChange, onUpdate }: Emai
           )}
 
           {action === 'calendar' && (
+            <div className="space-y-3">
+              <p className="text-sm text-muted-foreground">
+                Créer un événement dans votre calendrier Google à partir de cet email.
+              </p>
+              <Button onClick={handleAddToCalendar} disabled={processing} className="w-full">
+                {processing ? 'Ajout...' : 'Ajouter au calendrier'}
+              </Button>
+            </div>
+          )}
+
+          {action === 'old_calendar_view' && email.calendar_details && (
             <div className="space-y-3">
               {email.calendar_details ? (
                 <>

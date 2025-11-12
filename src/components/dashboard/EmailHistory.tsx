@@ -247,7 +247,7 @@ export const EmailHistory = () => {
                           <MoreVertical className="h-4 w-4" />
                         </Button>
                       </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="bg-background">
+                      <DropdownMenuContent align="end" className="z-50">
                         <DropdownMenuItem onClick={() => {
                           setSelectedEmail(email);
                           setDetailsDialogOpen(true);

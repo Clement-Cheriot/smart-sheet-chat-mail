@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card } from "@/components/ui/card";
 import { Trash2, Edit, Plus } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { GoogleContactsSync } from "./GoogleContactsSync";
 
 interface ContactRule {
   id: string;
@@ -149,6 +150,8 @@ export const ContactRules = () => {
 
   return (
     <div className="space-y-4">
+      <GoogleContactsSync />
+      
       <div className="flex justify-between items-center">
         <h2 className="text-2xl font-bold">Règles Contacts</h2>
         <Dialog open={isDialogOpen} onOpenChange={(open) => { setIsDialogOpen(open); if (!open) resetForm(); }}>
