@@ -346,48 +346,129 @@ serve(async (req) => {
       }
     }
 
-    // Automatically create calendar event if needed
+    // Automatically create calendar event if needed and filters pass
     if (aiAnalysis.needs_calendar_action && aiAnalysis.calendar_details) {
-      console.log('Creating calendar event automatically:', aiAnalysis.calendar_details);
+      console.log('Calendar event candidate:', aiAnalysis.calendar_details);
       
-      try {
-        const { data: calendarData, error: calendarError } = await supabase.functions.invoke('gmail-calendar', {
-          body: {
-            userId: emailData.userId,
-            eventDetails: {
-              title: aiAnalysis.calendar_details.title || emailData.subject,
-              date: aiAnalysis.calendar_details.date,
-              duration_minutes: aiAnalysis.calendar_details.duration_minutes || 60,
-              location: aiAnalysis.calendar_details.location,
-              attendees: aiAnalysis.calendar_details.attendees,
-              description: aiAnalysis.calendar_details.description || aiAnalysis.body_summary,
+      // Get user's calendar rules to check filters
+      const { data: calendarRules } = await supabase
+        .from('calendar_rules')
+        .select('sender_patterns_exclude, keywords_exclude, auto_create_events')
+        .eq('user_id', emailData.userId)
+        .limit(1)
+        .maybeSingle();
+
+      let shouldCreateEvent = true;
+      const excludeReasons: string[] = [];
+
+      // Check if it's a Google Calendar notification (to prevent loops)
+      if (emailData.sender.toLowerCase().includes('calendar-notification@google.com') ||
+          emailData.sender.toLowerCase().includes('calendar@google.com')) {
+        shouldCreateEvent = false;
+        excludeReasons.push('Google Calendar notification detected');
+      }
+
+      // Apply user-defined filters if calendar rules exist
+      if (calendarRules) {
+        const senderLower = emailData.sender.toLowerCase();
+        const subjectLower = emailData.subject?.toLowerCase() || '';
+        const bodyLower = emailData.body?.toLowerCase() || '';
+
+        // Check sender exclusions
+        if (calendarRules.sender_patterns_exclude?.length > 0) {
+          for (const pattern of calendarRules.sender_patterns_exclude) {
+            if (senderLower.includes(pattern.toLowerCase())) {
+              shouldCreateEvent = false;
+              excludeReasons.push(`Sender matches exclude pattern: ${pattern}`);
+              break;
             }
           }
-        });
-
-        if (calendarError) {
-          console.error('Error creating calendar event:', calendarError);
-          await supabase
-            .from('email_history')
-            .update({ 
-              actions_taken: [...actionsTaken, { type: 'calendar_failed', value: true, error: calendarError.message }]
-            })
-            .eq('id', historyRecord.id);
-        } else {
-          console.log('Calendar event created successfully:', calendarData?.eventId);
-          await supabase
-            .from('email_history')
-            .update({ 
-              actions_taken: [...actionsTaken, { type: 'calendar_created', value: true, eventId: calendarData?.eventId }]
-            })
-            .eq('id', historyRecord.id);
         }
-      } catch (calErr: any) {
-        console.error('Exception creating calendar event:', calErr);
+
+        // Check keyword exclusions
+        if (shouldCreateEvent && calendarRules.keywords_exclude?.length > 0) {
+          for (const keyword of calendarRules.keywords_exclude) {
+            const keywordLower = keyword.toLowerCase();
+            if (subjectLower.includes(keywordLower) || bodyLower.includes(keywordLower)) {
+              shouldCreateEvent = false;
+              excludeReasons.push(`Contains excluded keyword: ${keyword}`);
+              break;
+            }
+          }
+        }
+      }
+
+      if (!shouldCreateEvent) {
+        console.log('Calendar event creation skipped:', excludeReasons);
         await supabase
           .from('email_history')
           .update({ 
-            actions_taken: [...actionsTaken, { type: 'calendar_error', value: true, error: calErr.message }]
+            needs_calendar_action: true,
+            calendar_details: aiAnalysis.calendar_details,
+            actions_taken: [...actionsTaken, { 
+              type: 'calendar_skipped', 
+              value: true, 
+              reasons: excludeReasons 
+            }]
+          })
+          .eq('id', historyRecord.id);
+      } else if (calendarRules?.auto_create_events) {
+        // Auto-create only if enabled in rules
+        try {
+          const { data: calendarData, error: calendarError } = await supabase.functions.invoke('gmail-calendar', {
+            body: {
+              userId: emailData.userId,
+              eventDetails: {
+                title: aiAnalysis.calendar_details.title || emailData.subject,
+                date: aiAnalysis.calendar_details.date,
+                duration_minutes: aiAnalysis.calendar_details.duration_minutes || 60,
+                location: aiAnalysis.calendar_details.location,
+                attendees: aiAnalysis.calendar_details.attendees,
+                description: aiAnalysis.calendar_details.description || aiAnalysis.body_summary,
+              }
+            }
+          });
+
+          if (calendarError) {
+            console.error('Error creating calendar event:', calendarError);
+            await supabase
+              .from('email_history')
+              .update({ 
+                needs_calendar_action: true,
+                calendar_details: aiAnalysis.calendar_details,
+                actions_taken: [...actionsTaken, { type: 'calendar_failed', value: true, error: calendarError.message }]
+              })
+              .eq('id', historyRecord.id);
+          } else {
+            console.log('Calendar event created successfully:', calendarData?.eventId);
+            await supabase
+              .from('email_history')
+              .update({ 
+                needs_calendar_action: false,
+                calendar_details: aiAnalysis.calendar_details,
+                actions_taken: [...actionsTaken, { type: 'calendar_created', value: true, eventId: calendarData?.eventId }]
+              })
+              .eq('id', historyRecord.id);
+          }
+        } catch (calErr: any) {
+          console.error('Exception creating calendar event:', calErr);
+          await supabase
+            .from('email_history')
+            .update({ 
+              needs_calendar_action: true,
+              calendar_details: aiAnalysis.calendar_details,
+              actions_taken: [...actionsTaken, { type: 'calendar_error', value: true, error: calErr.message }]
+            })
+            .eq('id', historyRecord.id);
+        }
+      } else {
+        // Store for manual action
+        console.log('Calendar event needs manual confirmation');
+        await supabase
+          .from('email_history')
+          .update({ 
+            needs_calendar_action: true,
+            calendar_details: aiAnalysis.calendar_details
           })
           .eq('id', historyRecord.id);
       }

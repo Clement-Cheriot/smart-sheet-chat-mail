@@ -209,28 +209,74 @@ async function createGmailDraft(
   content: string,
   credentials: any
 ): Promise<string> {
-  // Mock implementation - in production, use Gmail API
   console.log(`Creating draft for message ${messageId}`);
   
-  // Example Gmail API call structure:
-  // const response = await fetch(
-  //   'https://gmail.googleapis.com/gmail/v1/users/me/drafts',
-  //   {
-  //     method: 'POST',
-  //     headers: {
-  //       'Authorization': `Bearer ${credentials.access_token}`,
-  //       'Content-Type': 'application/json',
-  //     },
-  //     body: JSON.stringify({
-  //       message: {
-  //         threadId: messageId,
-  //         raw: btoa(`To: ${recipient}\nSubject: Re: ${subject}\n\n${content}`)
-  //       }
-  //     })
-  //   }
-  // );
+  let accessToken = credentials.access_token;
+
+  // Helper to call Gmail API with automatic refresh on 401/403
+  const gmailFetch = async (url: string, init?: RequestInit): Promise<Response> => {
+    let res = await fetch(url, {
+      ...(init || {}),
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+        ...(init?.headers || {}),
+      },
+    });
+
+    if (!res.ok && (res.status === 401 || res.status === 403) && credentials.refresh_token) {
+      // Try refresh token once
+      accessToken = await refreshAccessToken(credentials);
+      res = await fetch(url, {
+        ...(init || {}),
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+          ...(init?.headers || {}),
+        },
+      });
+    }
+
+    return res;
+  };
   
-  return `draft_${Date.now()}`;
+  // Build RFC 2822 formatted email
+  const emailContent = [
+    `To: ${recipient}`,
+    `Subject: Re: ${subject}`,
+    `Content-Type: text/plain; charset=utf-8`,
+    ``,
+    content
+  ].join('\r\n');
+  
+  // Base64url encode (replace + with -, / with _, remove padding =)
+  const base64Email = btoa(unescape(encodeURIComponent(emailContent)))
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/, '');
+  
+  const response = await gmailFetch(
+    'https://gmail.googleapis.com/gmail/v1/users/me/drafts',
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        message: {
+          raw: base64Email,
+          threadId: messageId,
+        }
+      })
+    }
+  );
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error('Gmail draft creation failed:', errorText);
+    throw new Error(`Failed to create draft: ${response.status}`);
+  }
+
+  const data = await response.json();
+  console.log('Draft created:', data.id);
+  return data.id;
 }
 
 async function generateDraftWithAI(

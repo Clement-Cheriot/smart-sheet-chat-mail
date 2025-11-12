@@ -17,6 +17,9 @@ interface CalendarRule {
   action_type: string;
   conditions: any;
   exclude_noreply: boolean;
+  sender_patterns_exclude?: string[];
+  keywords_exclude?: string[];
+  auto_create_events?: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -25,7 +28,15 @@ export const CalendarRules = () => {
   const [rules, setRules] = useState<CalendarRule[]>([]);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingRule, setEditingRule] = useState<CalendarRule | null>(null);
-  const [formData, setFormData] = useState({ name: "", action_type: "create_event", conditions: "", exclude_noreply: true });
+  const [formData, setFormData] = useState({ 
+    name: "", 
+    action_type: "create_event", 
+    conditions: "", 
+    exclude_noreply: true,
+    sender_patterns_exclude: "",
+    keywords_exclude: "",
+    auto_create_events: false
+  });
   const { toast } = useToast();
 
   useEffect(() => {
@@ -68,10 +79,24 @@ export const CalendarRules = () => {
         return;
       }
       
+      // Parse sender patterns and keywords
+      const senderPatterns = formData.sender_patterns_exclude
+        .split('\n')
+        .map(s => s.trim())
+        .filter(s => s.length > 0);
+      
+      const keywords = formData.keywords_exclude
+        .split('\n')
+        .map(s => s.trim())
+        .filter(s => s.length > 0);
+
       const ruleData = {
         name: formData.name.trim(),
         action_type: formData.action_type,
         exclude_noreply: formData.exclude_noreply,
+        sender_patterns_exclude: senderPatterns,
+        keywords_exclude: keywords,
+        auto_create_events: formData.auto_create_events,
         conditions
       };
 
@@ -121,7 +146,15 @@ export const CalendarRules = () => {
   };
 
   const resetForm = () => {
-    setFormData({ name: "", action_type: "create_event", conditions: "", exclude_noreply: true });
+    setFormData({ 
+      name: "", 
+      action_type: "create_event", 
+      conditions: "", 
+      exclude_noreply: true,
+      sender_patterns_exclude: "",
+      keywords_exclude: "",
+      auto_create_events: false
+    });
     setEditingRule(null);
   };
 
@@ -131,7 +164,10 @@ export const CalendarRules = () => {
       name: rule.name,
       action_type: rule.action_type,
       conditions: rule.conditions ? JSON.stringify(rule.conditions, null, 2) : "",
-      exclude_noreply: rule.exclude_noreply
+      exclude_noreply: rule.exclude_noreply,
+      sender_patterns_exclude: (rule.sender_patterns_exclude || []).join('\n'),
+      keywords_exclude: (rule.keywords_exclude || []).join('\n'),
+      auto_create_events: rule.auto_create_events || false
     });
     setIsDialogOpen(true);
   };
@@ -170,6 +206,34 @@ export const CalendarRules = () => {
                 <Switch checked={formData.exclude_noreply} onCheckedChange={(checked) => setFormData({ ...formData, exclude_noreply: checked })} />
                 <Label>Exclure les no-reply</Label>
               </div>
+              <div className="flex items-center space-x-2">
+                <Switch checked={formData.auto_create_events} onCheckedChange={(checked) => setFormData({ ...formData, auto_create_events: checked })} />
+                <Label>Créer automatiquement les événements</Label>
+              </div>
+              <div>
+                <Label>Expéditeurs à exclure (un par ligne)</Label>
+                <Textarea 
+                  rows={3} 
+                  value={formData.sender_patterns_exclude} 
+                  onChange={(e) => setFormData({ ...formData, sender_patterns_exclude: e.target.value })} 
+                  placeholder="netflix.com&#10;calendar-notification@google.com&#10;promotions@"
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Les emails contenant ces patterns dans l'expéditeur seront exclus
+                </p>
+              </div>
+              <div>
+                <Label>Mots-clés à exclure (un par ligne)</Label>
+                <Textarea 
+                  rows={3} 
+                  value={formData.keywords_exclude} 
+                  onChange={(e) => setFormData({ ...formData, keywords_exclude: e.target.value })} 
+                  placeholder="promotion&#10;newsletter&#10;publicité&#10;offre"
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Les emails contenant ces mots-clés seront exclus
+                </p>
+              </div>
               <div>
                 <Label>Conditions (JSON optionnel)</Label>
                 <Textarea rows={4} value={formData.conditions} onChange={(e) => setFormData({ ...formData, conditions: e.target.value })} placeholder='{"keywords": ["réunion", "meeting", "rdv"]}' />
@@ -188,6 +252,17 @@ export const CalendarRules = () => {
                 <h3 className="font-semibold text-lg">{rule.name}</h3>
                 <p className="text-sm text-muted-foreground">Action: {rule.action_type}</p>
                 <p className="text-xs text-muted-foreground">Exclure no-reply: {rule.exclude_noreply ? "Oui" : "Non"}</p>
+                <p className="text-xs text-muted-foreground">Création auto: {rule.auto_create_events ? "Oui" : "Non"}</p>
+                {rule.sender_patterns_exclude && rule.sender_patterns_exclude.length > 0 && (
+                  <div className="text-xs text-muted-foreground mt-2">
+                    <strong>Expéditeurs exclus:</strong> {rule.sender_patterns_exclude.join(', ')}
+                  </div>
+                )}
+                {rule.keywords_exclude && rule.keywords_exclude.length > 0 && (
+                  <div className="text-xs text-muted-foreground mt-1">
+                    <strong>Mots-clés exclus:</strong> {rule.keywords_exclude.join(', ')}
+                  </div>
+                )}
                 {rule.conditions && (
                   <pre className="text-xs text-muted-foreground mt-2 bg-muted p-2 rounded">
                     {JSON.stringify(rule.conditions, null, 2)}

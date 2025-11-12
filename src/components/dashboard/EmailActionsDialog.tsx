@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { toast } from '@/hooks/use-toast';
-import { Tag, Star, Mail, Send, Trash, Check, ChevronsUpDown } from 'lucide-react';
+import { Tag, Star, Mail, Send, Trash, Check, ChevronsUpDown, Calendar } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface EmailActionsDialogProps {
@@ -315,6 +315,12 @@ export const EmailActionsDialog = ({ email, open, onOpenChange, onUpdate }: Emai
                     Répondre automatiquement
                   </div>
                 </SelectItem>
+                <SelectItem value="calendar">
+                  <div className="flex items-center gap-2">
+                    <Calendar className="h-4 w-4" />
+                    Ajouter au calendrier
+                  </div>
+                </SelectItem>
                 <SelectItem value="delete">
                   <div className="flex items-center gap-2">
                     <Trash className="h-4 w-4" />
@@ -453,6 +459,64 @@ export const EmailActionsDialog = ({ email, open, onOpenChange, onUpdate }: Emai
               <Button onClick={handleAutoReply} disabled={processing} className="w-full">
                 {processing ? 'Envoi...' : 'Envoyer la réponse'}
               </Button>
+            </div>
+          )}
+
+          {action === 'calendar' && (
+            <div className="space-y-3">
+              {email.calendar_details ? (
+                <>
+                  <div className="bg-muted p-3 rounded-lg space-y-2 text-sm">
+                    <p><strong>Titre:</strong> {email.calendar_details.title || email.subject}</p>
+                    <p><strong>Date:</strong> {email.calendar_details.date}</p>
+                    {email.calendar_details.location && (
+                      <p><strong>Lieu:</strong> {email.calendar_details.location}</p>
+                    )}
+                    {email.calendar_details.duration_minutes && (
+                      <p><strong>Durée:</strong> {email.calendar_details.duration_minutes} minutes</p>
+                    )}
+                  </div>
+                  <Button onClick={async () => {
+                    setProcessing(true);
+                    try {
+                      const { data, error } = await supabase.functions.invoke('gmail-calendar', {
+                        body: {
+                          userId: user?.id,
+                          eventDetails: {
+                            title: email.calendar_details.title || email.subject,
+                            date: email.calendar_details.date,
+                            duration_minutes: email.calendar_details.duration_minutes || 60,
+                            location: email.calendar_details.location,
+                            attendees: email.calendar_details.attendees,
+                            description: email.calendar_details.description || email.body_summary,
+                          }
+                        }
+                      });
+
+                      if (error) throw error;
+
+                      await supabase
+                        .from('email_history')
+                        .update({ needs_calendar_action: false })
+                        .eq('id', email.id);
+
+                      toast({ title: 'Succès', description: 'Événement ajouté au calendrier' });
+                      onUpdate();
+                      onOpenChange(false);
+                    } catch (error: any) {
+                      toast({ title: 'Erreur', description: error.message, variant: 'destructive' });
+                    } finally {
+                      setProcessing(false);
+                    }
+                  }} disabled={processing} className="w-full">
+                    {processing ? 'Ajout...' : 'Ajouter au calendrier'}
+                  </Button>
+                </>
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  Aucun détail d'événement détecté pour cet email.
+                </p>
+              )}
             </div>
           )}
 

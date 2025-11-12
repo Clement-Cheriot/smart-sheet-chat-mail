@@ -91,31 +91,40 @@ export type Database = {
       calendar_rules: {
         Row: {
           action_type: string | null
+          auto_create_events: boolean | null
           conditions: Json | null
           created_at: string | null
           exclude_noreply: boolean | null
           id: string
+          keywords_exclude: string[] | null
           name: string
+          sender_patterns_exclude: string[] | null
           updated_at: string | null
           user_id: string
         }
         Insert: {
           action_type?: string | null
+          auto_create_events?: boolean | null
           conditions?: Json | null
           created_at?: string | null
           exclude_noreply?: boolean | null
           id?: string
+          keywords_exclude?: string[] | null
           name: string
+          sender_patterns_exclude?: string[] | null
           updated_at?: string | null
           user_id: string
         }
         Update: {
           action_type?: string | null
+          auto_create_events?: boolean | null
           conditions?: Json | null
           created_at?: string | null
           exclude_noreply?: boolean | null
           id?: string
+          keywords_exclude?: string[] | null
           name?: string
+          sender_patterns_exclude?: string[] | null
           updated_at?: string | null
           user_id?: string
         }

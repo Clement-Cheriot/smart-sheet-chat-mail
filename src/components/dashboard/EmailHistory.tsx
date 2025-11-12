@@ -247,7 +247,7 @@ export const EmailHistory = () => {
                           <MoreVertical className="h-4 w-4" />
                         </Button>
                       </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
+                      <DropdownMenuContent align="end" className="bg-background">
                         <DropdownMenuItem onClick={() => {
                           setSelectedEmail(email);
                           setDetailsDialogOpen(true);
@@ -320,8 +320,16 @@ export const EmailHistory = () => {
                   {email.draft_created && email.draft_id && (
                     <div className="flex items-center gap-2 text-xs">
                       <Mail className="h-3 w-3 text-blue-500" />
-                      <span className="font-medium">Rédaction d'un brouillon :</span>
-                      <Button variant="link" size="sm" className="h-auto p-0 text-xs">
+                      <span className="font-medium">Brouillon créé dans Gmail</span>
+                      <Button 
+                        variant="link" 
+                        size="sm" 
+                        className="h-auto p-0 text-xs"
+                        onClick={() => {
+                          setSelectedEmail(email);
+                          setDetailsDialogOpen(true);
+                        }}
+                      >
                         Voir détails
                       </Button>
                     </div>
@@ -334,12 +342,20 @@ export const EmailHistory = () => {
                     </div>
                   )}
                   
-                  {email.ai_analysis?.needs_calendar_action && (
+                  {email.needs_calendar_action && email.calendar_details && (
                     <div className="flex items-center gap-2 text-xs">
                       <Calendar className="h-3 w-3 text-orange-500" />
-                      <span className="font-medium">Ajout/modification du calendrier :</span>
-                      <Button variant="link" size="sm" className="h-auto p-0 text-xs">
-                        Voir détails (à développer)
+                      <span className="font-medium">Événement calendrier détecté :</span>
+                      <Button 
+                        variant="link" 
+                        size="sm" 
+                        className="h-auto p-0 text-xs"
+                        onClick={() => {
+                          setSelectedEmail(email);
+                          setDetailsDialogOpen(true);
+                        }}
+                      >
+                        Voir détails
                       </Button>
                     </div>
                   )}
