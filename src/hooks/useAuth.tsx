@@ -106,9 +106,18 @@ export const useAuth = () => {
 
       return { data, error: null };
     } catch (error: any) {
+      console.error('Sign in error:', error);
+      
+      let errorMessage = error.message || 'Une erreur est survenue';
+      
+      // Handle network errors specifically
+      if (error.message === 'Failed to fetch' || error.message === 'Load failed' || !error.message) {
+        errorMessage = 'Erreur de connexion au serveur. Vérifiez votre connexion Internet ou réessayez dans quelques instants.';
+      }
+      
       toast({
         title: 'Erreur de connexion',
-        description: error.message,
+        description: errorMessage,
         variant: 'destructive',
       });
       return { data: null, error };
