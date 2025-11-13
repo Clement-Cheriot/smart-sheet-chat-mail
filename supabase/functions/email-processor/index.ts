@@ -171,17 +171,9 @@ serve(async (req) => {
       }
     }
     
-    // Rule can also force draft creation even if AI says no (backwards compatibility)
-    if (appliedRuleId?.create_draft && !shouldCreateDraft && !shouldAutoReply) {
-      const isNewsletter = aiAnalysis.category === 'newsletter';
-      const isMarketing = aiAnalysis.category === 'marketing';
-      
-      if (!(isNewsletter && appliedRuleId.exclude_newsletters) && 
-          !(isMarketing && appliedRuleId.exclude_marketing)) {
-        shouldCreateDraft = true;
-        console.log('Draft forced by rule override');
-      }
-    }
+    // CRITICAL FIX: Only create draft if AI explicitly recommends it AND rule allows it
+    // Never force draft creation just because a rule has create_draft=true
+    // The create_draft flag should only ALLOW, not FORCE draft creation
     
     console.log('Response decision:', { 
       aiNeedsResponse: aiAnalysis.needs_response,
