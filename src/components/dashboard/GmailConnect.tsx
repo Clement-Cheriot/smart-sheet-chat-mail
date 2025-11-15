@@ -10,7 +10,9 @@ export const GmailConnect = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [checking, setChecking] = useState(true);
+  const [syncProgress, setSyncProgress] = useState<number>(0);
   const popupRef = useRef<Window | null>(null);
+  const syncPollingRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     checkGmailConnection();
@@ -29,6 +31,13 @@ export const GmailConnect = () => {
       toast.error("Erreur de connexion Gmail");
       window.history.replaceState({}, '', '/#/dashboard');
     }
+
+    // Cleanup polling on unmount
+    return () => {
+      if (syncPollingRef.current) {
+        clearInterval(syncPollingRef.current);
+      }
+    };
   }, []);
 
   const checkGmailConnection = async () => {
@@ -138,6 +147,8 @@ export const GmailConnect = () => {
 
   const handleSyncEmails = async (fullSync = false) => {
     setSyncing(true);
+    setSyncProgress(0);
+    
     try {
       const { data: { session } } = await supabase.auth.getSession();
       
@@ -146,39 +157,99 @@ export const GmailConnect = () => {
         return;
       }
 
-      const { data, error } = await supabase.functions.invoke('gmail-sync', {
+      // Get initial count
+      const { count: initialCount } = await supabase
+        .from('email_history')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', session.user.id);
+
+      toast.info(fullSync ? "Synchronisation complète lancée..." : "Synchronisation rapide lancée...");
+
+      // Start polling for progress
+      let lastCount = initialCount || 0;
+      syncPollingRef.current = setInterval(async () => {
+        const { count: newCount } = await supabase
+          .from('email_history')
+          .select('*', { count: 'exact', head: true })
+          .eq('user_id', session.user.id);
+        
+        if (newCount && newCount > lastCount) {
+          const newEmails = newCount - lastCount;
+          setSyncProgress(prev => prev + newEmails);
+          toast.info(`${newEmails} nouveaux emails traités...`, { duration: 2000 });
+          lastCount = newCount;
+        }
+      }, 3000);
+
+      // Invoke sync function with longer timeout tolerance
+      const syncPromise = supabase.functions.invoke('gmail-sync', {
         headers: {
           Authorization: `Bearer ${session.access_token}`,
         },
         body: { userId: session.user.id, fullSync },
       });
 
-      if (error) throw error;
+      // Add a timeout handler
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('TIMEOUT')), 90000)
+      );
 
-      if (data?.reason === 'sync_already_in_progress') {
-        // Tentative de réinitialisation et relance immédiate
-        const { data: retryData, error: retryError } = await supabase.functions.invoke('gmail-sync', {
-          headers: {
-            Authorization: `Bearer ${session.access_token}`,
-          },
-          body: { userId: session.user.id, forceReset: true, fullSync },
-        });
-        if (retryError) throw retryError;
-        if (retryData?.success) {
-          toast.success(`${retryData.processedCount || 0} emails synchronisés`);
-        } else if (retryData?.reason === 'sync_already_in_progress') {
-          toast.error('Une synchronisation est déjà en cours, réessayez dans quelques secondes.');
-        } else {
-          toast.success(`${retryData?.processedCount || 0} emails synchronisés`);
+      try {
+        const { data, error } = await Promise.race([syncPromise, timeoutPromise]) as any;
+        
+        if (error && error.message !== 'TIMEOUT') throw error;
+
+        // Clear polling
+        if (syncPollingRef.current) {
+          clearInterval(syncPollingRef.current);
+          syncPollingRef.current = null;
         }
-      } else {
-        toast.success(`${data.processedCount || 0} emails synchronisés`);
+
+        // Get final count
+        const { count: finalCount } = await supabase
+          .from('email_history')
+          .select('*', { count: 'exact', head: true })
+          .eq('user_id', session.user.id);
+
+        const totalProcessed = (finalCount || 0) - (initialCount || 0);
+
+        if (data?.reason === 'sync_already_in_progress') {
+          toast.warning('Une synchronisation était déjà en cours. Réessayez dans quelques instants.');
+        } else {
+          toast.success(`✓ Synchronisation terminée : ${totalProcessed} emails traités`);
+        }
+      } catch (err: any) {
+        if (err.message === 'TIMEOUT') {
+          // Timeout is OK - sync continues in background
+          toast.info("La synchronisation continue en arrière-plan. Les nouveaux emails apparaîtront automatiquement.");
+        } else {
+          throw err;
+        }
       }
     } catch (error: any) {
       console.error('Error syncing emails:', error);
-      toast.error("Erreur lors de la synchronisation");
+      
+      // Clear polling on error
+      if (syncPollingRef.current) {
+        clearInterval(syncPollingRef.current);
+        syncPollingRef.current = null;
+      }
+
+      // Provide detailed error message
+      if (error.message?.includes('Load failed') || error.message?.includes('Failed to fetch')) {
+        toast.error("Erreur de connexion. Vérifiez votre connexion Internet.");
+      } else if (error.message?.includes('JWT')) {
+        toast.error("Session expirée. Reconnectez-vous à Gmail.");
+      } else {
+        toast.error("Erreur lors de la synchronisation. Réessayez.");
+      }
     } finally {
       setSyncing(false);
+      setSyncProgress(0);
+      if (syncPollingRef.current) {
+        clearInterval(syncPollingRef.current);
+        syncPollingRef.current = null;
+      }
     }
   };
 
@@ -273,7 +344,7 @@ export const GmailConnect = () => {
                   variant="outline"
                   className="flex-1"
                 >
-                  {syncing ? "Synchronisation..." : "Sync rapide"}
+                  {syncing && syncProgress > 0 ? `${syncProgress} emails` : syncing ? "Synchronisation..." : "Sync rapide"}
                 </Button>
                 <Button
                   onClick={() => handleSyncEmails(true)}
@@ -281,7 +352,7 @@ export const GmailConnect = () => {
                   variant="outline"
                   className="flex-1"
                 >
-                  {syncing ? "Synchronisation..." : "Sync complète"}
+                  {syncing && syncProgress > 0 ? `${syncProgress} emails` : syncing ? "Synchronisation..." : "Sync complète"}
                 </Button>
               </div>
             </>
