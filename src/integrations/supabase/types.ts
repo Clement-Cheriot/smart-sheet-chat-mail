@@ -132,6 +132,7 @@ export type Database = {
       }
       contact_rules: {
         Row: {
+          auto_reply_enabled: boolean | null
           created_at: string | null
           email: string
           id: string
@@ -143,6 +144,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          auto_reply_enabled?: boolean | null
           created_at?: string | null
           email: string
           id?: string
@@ -154,6 +156,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          auto_reply_enabled?: boolean | null
           created_at?: string | null
           email?: string
           id?: string

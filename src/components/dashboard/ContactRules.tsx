@@ -18,6 +18,7 @@ interface ContactRule {
   preferred_signature_id: string | null;
   preferred_tone: string | null;
   notes: string | null;
+  auto_reply_enabled: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -32,7 +33,14 @@ export const ContactRules = () => {
   const [signatures, setSignatures] = useState<Signature[]>([]);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingContact, setEditingContact] = useState<ContactRule | null>(null);
-  const [formData, setFormData] = useState({ email: "", name: "", preferred_signature_id: "", preferred_tone: "", notes: "" });
+  const [formData, setFormData] = useState({ 
+    email: "", 
+    name: "", 
+    preferred_signature_id: "", 
+    preferred_tone: "", 
+    notes: "",
+    auto_reply_enabled: false
+  });
   const { toast } = useToast();
 
   useEffect(() => {
@@ -132,7 +140,14 @@ export const ContactRules = () => {
   };
 
   const resetForm = () => {
-    setFormData({ email: "", name: "", preferred_signature_id: "none", preferred_tone: "none", notes: "" });
+    setFormData({ 
+      email: "", 
+      name: "", 
+      preferred_signature_id: "none", 
+      preferred_tone: "none", 
+      notes: "",
+      auto_reply_enabled: false
+    });
     setEditingContact(null);
   };
 
@@ -143,7 +158,8 @@ export const ContactRules = () => {
       name: contact.name || "",
       preferred_signature_id: contact.preferred_signature_id || "none",
       preferred_tone: contact.preferred_tone || "none",
-      notes: contact.notes || ""
+      notes: contact.notes || "",
+      auto_reply_enabled: contact.auto_reply_enabled || false
     });
     setIsDialogOpen(true);
   };
@@ -202,6 +218,18 @@ export const ContactRules = () => {
                 <Label>Notes</Label>
                 <Textarea rows={3} value={formData.notes} onChange={(e) => setFormData({ ...formData, notes: e.target.value })} />
               </div>
+              <div className="flex items-center gap-2">
+                <input 
+                  type="checkbox" 
+                  id="auto_reply_enabled"
+                  checked={formData.auto_reply_enabled}
+                  onChange={(e) => setFormData({ ...formData, auto_reply_enabled: e.target.checked })}
+                  className="w-4 h-4"
+                />
+                <Label htmlFor="auto_reply_enabled" className="cursor-pointer">
+                  Activer les réponses automatiques pour ce contact
+                </Label>
+              </div>
               <Button onClick={handleSubmit}>{editingContact ? "Modifier" : "Créer"}</Button>
             </div>
           </DialogContent>
@@ -218,6 +246,9 @@ export const ContactRules = () => {
                 {contact.preferred_tone && <p className="text-xs text-muted-foreground mt-1">Ton: {contact.preferred_tone}</p>}
                 {contact.preferred_signature_id && (
                   <p className="text-xs text-muted-foreground">Signature: {signatures.find(s => s.id === contact.preferred_signature_id)?.name}</p>
+                )}
+                {contact.auto_reply_enabled && (
+                  <p className="text-xs text-green-600 mt-1">✓ Réponses auto activées</p>
                 )}
                 {contact.notes && <p className="text-sm text-muted-foreground mt-2">{contact.notes}</p>}
               </div>
