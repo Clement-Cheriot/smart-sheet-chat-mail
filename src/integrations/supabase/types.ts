@@ -464,6 +464,48 @@ export type Database = {
         }
         Relationships: []
       }
+      google_contacts: {
+        Row: {
+          contact_id: string
+          created_at: string
+          email: string
+          id: string
+          labels: string[] | null
+          last_synced_at: string
+          name: string | null
+          notes: string | null
+          phone: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          contact_id: string
+          created_at?: string
+          email: string
+          id?: string
+          labels?: string[] | null
+          last_synced_at?: string
+          name?: string | null
+          notes?: string | null
+          phone?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          contact_id?: string
+          created_at?: string
+          email?: string
+          id?: string
+          labels?: string[] | null
+          last_synced_at?: string
+          name?: string | null
+          notes?: string | null
+          phone?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           avatar_url: string | null

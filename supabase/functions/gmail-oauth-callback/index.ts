@@ -111,14 +111,24 @@ serve(async (req) => {
     const html = `<!DOCTYPE html><html lang="fr"><head>
       <meta charset="utf-8" />
       <meta name="viewport" content="width=device-width, initial-scale=1" />
-      <title>Connexion Gmail</title>
-      <style>html,body{background:transparent;margin:0;padding:0} .sr{position:absolute;left:-9999px}</style>
+      <title>Gmail connecté</title>
+      <style>
+        body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);color:#fff}
+        .c{text-align:center;padding:2rem;background:rgba(255,255,255,.1);backdrop-filter:blur(10px);border-radius:1rem;box-shadow:0 8px 32px rgba(0,0,0,.1)}
+        svg{width:60px;height:60px;margin:0 auto 1rem;display:block}
+        h1{margin:0 0 .5rem;font-size:1.5rem}
+        p{margin:0;opacity:.9}
+      </style>
     </head><body>
-      <span class="sr">Connexion en cours…</span>
+      <div class="c">
+        <svg viewBox="0 0 52 52"><circle cx="26" cy="26" r="25" fill="none" stroke="currentColor" stroke-width="3"/><path fill="none" stroke="currentColor" stroke-width="3" d="M14.1 27.2l7.1 7.2 16.7-16.8"/></svg>
+        <h1>✓ Gmail connecté</h1>
+        <p>Fermeture automatique...</p>
+      </div>
       <script>(function(){
         try{ if(window.opener){ window.opener.postMessage({type:'gmail_oauth_complete', success:true}, '*'); } }catch(_){}
         try{ window.close(); }catch(_){}
-        setTimeout(function(){ if(!window.closed){ window.location.replace('${dashboardUrl}'); } }, 300);
+        setTimeout(function(){ if(!window.closed){ window.location.replace('${dashboardUrl}'); } }, 100);
       })();</script>
     </body></html>`;
     return new Response(html, { headers: { 'Content-Type': 'text/html; charset=utf-8' } });
@@ -131,14 +141,22 @@ serve(async (req) => {
     const html = `<!DOCTYPE html><html lang="fr"><head>
       <meta charset="utf-8" />
       <meta name="viewport" content="width=device-width, initial-scale=1" />
-      <title>Connexion Gmail</title>
-      <style>html,body{background:transparent;margin:0;padding:0} .sr{position:absolute;left:-9999px}</style>
+      <title>Erreur de connexion</title>
+      <style>
+        body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;background:linear-gradient(135deg,#f093fb 0%,#f5576c 100%);color:#fff}
+        .c{text-align:center;padding:2rem;background:rgba(255,255,255,.1);backdrop-filter:blur(10px);border-radius:1rem;box-shadow:0 8px 32px rgba(0,0,0,.1)}
+        h1{margin:0 0 .5rem;font-size:1.5rem}
+        p{margin:0;opacity:.9}
+      </style>
     </head><body>
-      <span class="sr">Fermeture…</span>
+      <div class="c">
+        <h1>❌ Erreur</h1>
+        <p>Fermeture automatique...</p>
+      </div>
       <script>(function(){
         try{ if(window.opener){ window.opener.postMessage({type:'gmail_oauth_complete', success:false}, '*'); } }catch(_){}
         try{ window.close(); }catch(_){}
-        setTimeout(function(){ if(!window.closed){ window.location.replace('${dashboardUrl}'); } }, 300);
+        setTimeout(function(){ if(!window.closed){ window.location.replace('${dashboardUrl}'); } }, 100);
       })();</script>
     </body></html>`;
     return new Response(html, { headers: { 'Content-Type': 'text/html; charset=utf-8' } });
