@@ -57,7 +57,22 @@ export const GmailConnect = () => {
         console.error('Error checking Gmail connection:', error);
       }
 
-      setIsConnected(!!data?.gmail_credentials);
+      const credentials = data?.gmail_credentials as any;
+      const isConnected = !!credentials;
+      
+      // Check if token is expired
+      if (isConnected && credentials?.expires_at) {
+        const isExpired = Date.now() >= credentials.expires_at;
+        if (isExpired) {
+          toast.error("Votre connexion Gmail a expiré. Veuillez vous reconnecter.", {
+            duration: 5000,
+          });
+          setIsConnected(false);
+          return;
+        }
+      }
+
+      setIsConnected(isConnected);
     } catch (error) {
       console.error('Error checking Gmail connection:', error);
     } finally {

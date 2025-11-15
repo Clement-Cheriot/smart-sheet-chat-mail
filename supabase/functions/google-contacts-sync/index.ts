@@ -27,16 +27,18 @@ serve(async (req) => {
       throw new Error('Not authenticated');
     }
 
-    // Get Gmail tokens
-    const { data: tokens } = await supabaseClient
-      .from('gmail_tokens')
-      .select('*')
+    // Get Gmail credentials from user_api_configs
+    const { data: config } = await supabaseClient
+      .from('user_api_configs')
+      .select('gmail_credentials')
       .eq('user_id', user.id)
       .single();
 
-    if (!tokens) {
+    if (!config?.gmail_credentials) {
       throw new Error('Gmail not connected');
     }
+
+    const tokens = config.gmail_credentials as any;
 
     // Fetch contacts from Google People API
     const contactsResponse = await fetch(
@@ -64,10 +66,16 @@ serve(async (req) => {
 
         const newTokens = await tokenResponse.json();
         
-        // Update tokens
+        // Update tokens in user_api_configs
+        const updatedCredentials = {
+          ...tokens,
+          access_token: newTokens.access_token,
+          expires_at: Date.now() + (newTokens.expires_in * 1000)
+        };
+        
         await supabaseClient
-          .from('gmail_tokens')
-          .update({ access_token: newTokens.access_token })
+          .from('user_api_configs')
+          .update({ gmail_credentials: updatedCredentials })
           .eq('user_id', user.id);
 
         // Retry with new token
