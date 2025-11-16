@@ -195,22 +195,16 @@ serve(async (req) => {
     const summaryMessage = lines.join('\n');
 
     // Send via Telegram based on options
-    if (sendTelegramText !== undefined || sendTelegramAudio !== undefined) {
-      await sendSummaryViaOptions(
-        summaryMessage, 
-        userId, 
-        sendTelegramText || false, 
-        sendTelegramAudio || false
-      );
-    } else {
-      // Default behavior: send text only
-      await supabase.functions.invoke('telegram-sender', {
-        body: {
-          userId,
-          message: summaryMessage,
-        }
-      });
-    }
+    // If neither is explicitly set, default to sending text only
+    const shouldSendText = sendTelegramText !== false; // true if undefined or true
+    const shouldSendAudio = sendTelegramAudio === true; // only true if explicitly true
+    
+    await sendSummaryViaOptions(
+      summaryMessage, 
+      userId, 
+      shouldSendText, 
+      shouldSendAudio
+    );
 
     // Log activity
     await supabase.from('activity_logs').insert({

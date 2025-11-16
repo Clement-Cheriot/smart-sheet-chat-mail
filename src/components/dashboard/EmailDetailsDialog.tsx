@@ -13,7 +13,9 @@ import {
   Lightbulb,
   FileText,
   Bot,
-  MessageSquare
+  MessageSquare,
+  ThumbsUp,
+  ThumbsDown
 } from 'lucide-react';
 
 interface EmailDetailsDialogProps {
@@ -187,21 +189,60 @@ export const EmailDetailsDialog = ({ email, open, onOpenChange, onEmailUpdated }
           <div className="space-y-3">
             <p className="text-sm font-medium flex items-center gap-2">
               <Lightbulb className="h-4 w-4" />
-              Suggestions
+              Suggestions et propositions
             </p>
 
-            {/* Créer nouveau label suggéré */}
-            {aiAnalysis.suggested_label && (
-              <Button 
-                variant="outline" 
-                size="sm"
-                onClick={() => handleCreateLabel(aiAnalysis.suggested_label)}
-                disabled={loading}
-                className="w-full justify-start"
-              >
-                <CheckCircle2 className="mr-2 h-4 w-4" />
-                Créer le label "{aiAnalysis.suggested_label}"
-              </Button>
+            {/* Proposition de nouveau label */}
+            {email.suggested_new_label && (
+              <Alert className="border-blue-200 bg-blue-50 dark:bg-blue-950">
+                <Lightbulb className="h-4 w-4 text-blue-600" />
+                <AlertDescription>
+                  <div className="space-y-3">
+                    <div>
+                      <p className="font-medium text-blue-900 dark:text-blue-100">Nouveau label proposé</p>
+                      <p className="text-sm text-blue-800 dark:text-blue-200 mt-1">
+                        L'IA suggère de créer le label "<strong>{email.suggested_new_label}</strong>" pour mieux catégoriser ce type d'email.
+                      </p>
+                      {email.rule_reinforcement_suggestion && (
+                        <p className="text-xs text-blue-700 dark:text-blue-300 mt-1">
+                          {email.rule_reinforcement_suggestion}
+                        </p>
+                      )}
+                    </div>
+                    <div className="flex gap-2">
+                      <Button 
+                        variant="default" 
+                        size="sm"
+                        onClick={() => handleCreateLabel(email.suggested_new_label)}
+                        disabled={loading}
+                        className="bg-blue-600 hover:bg-blue-700"
+                      >
+                        <ThumbsUp className="h-4 w-4 mr-1" />
+                        Valider et créer le label
+                      </Button>
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={async () => {
+                          try {
+                            await supabase
+                              .from('email_history')
+                              .update({ suggested_new_label: null, rule_reinforcement_suggestion: null })
+                              .eq('id', email.id);
+                            toast({ title: "Proposition refusée" });
+                            onEmailUpdated();
+                          } catch (error) {
+                            console.error(error);
+                          }
+                        }}
+                      >
+                        <ThumbsDown className="h-4 w-4 mr-1" />
+                        Refuser
+                      </Button>
+                    </div>
+                  </div>
+                </AlertDescription>
+              </Alert>
             )}
 
             {/* Créer événement calendrier */}
@@ -218,7 +259,7 @@ export const EmailDetailsDialog = ({ email, open, onOpenChange, onEmailUpdated }
               </Button>
             )}
 
-            {!aiAnalysis.suggested_label && !email.needs_calendar_action && (
+            {!email.suggested_new_label && !aiAnalysis.suggested_label && !email.needs_calendar_action && (
               <p className="text-sm text-muted-foreground">Aucune suggestion disponible</p>
             )}
           </div>
@@ -231,9 +272,27 @@ export const EmailDetailsDialog = ({ email, open, onOpenChange, onEmailUpdated }
                 Actions effectuées
               </p>
               <div className="space-y-1">
-                {email.actions_taken.map((action: string, i: number) => (
-                  <p key={i} className="text-sm text-muted-foreground">• {action}</p>
-                ))}
+                {email.actions_taken.map((action: any, i: number) => {
+                  if (action.type === 'label') {
+                    return (
+                      <p key={i} className="text-sm text-muted-foreground">
+                        • Application de labels : {Array.isArray(action.value) ? action.value.join(', ') : action.value}
+                      </p>
+                    );
+                  }
+                  if (action.type === 'needs_manual_review') {
+                    return (
+                      <p key={i} className="text-sm text-orange-600 dark:text-orange-400 font-medium">
+                        ⚠️ Revue manuelle nécessaire (Needs Manual Review)
+                      </p>
+                    );
+                  }
+                  return (
+                    <p key={i} className="text-sm text-muted-foreground">
+                      • {typeof action === 'string' ? action : JSON.stringify(action)}
+                    </p>
+                  );
+                })}
               </div>
             </div>
           )}
