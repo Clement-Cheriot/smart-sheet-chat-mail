@@ -212,11 +212,14 @@ serve(async (req) => {
     const hasCategory = appliedLabels.some(label => !label.startsWith('Actions/'));
     const hasAction = appliedLabels.some(label => label.startsWith('Actions/'));
     
-    // Fix: If missing category, add a default one
+    // Track if manual review is needed (as a flag, not a label)
+    let needsManualReview = false;
+    
+    // Fix: If missing category, flag for manual review but don't add label
     if (!hasCategory) {
-      console.warn('Missing category label, adding default "Needs Manual Review"');
-      appliedLabels.unshift('Needs Manual Review');
-      categoryLabel = 'Needs Manual Review';
+      console.warn('Missing category label, flagging for manual review');
+      needsManualReview = true;
+      // Don't add "Needs Manual Review" as a label anymore
     }
     
     // Fix: If missing action, add a default one
@@ -224,6 +227,7 @@ serve(async (req) => {
       console.warn('Missing action label, adding default "Actions/Revue Manuelle"');
       appliedLabels.push('Actions/Revue Manuelle');
       actionLabel = 'Actions/Revue Manuelle';
+      needsManualReview = true;
     }
     
     // Fix: If we have multiple action labels, keep only the first one
@@ -242,18 +246,22 @@ serve(async (req) => {
       categoryLabel = categoryLabels[0];
     }
     
-    console.log('Final labels (validated):', { category: categoryLabel, action: actionLabel, all: appliedLabels });
+    console.log('Final labels (validated):', { category: categoryLabel, action: actionLabel, all: appliedLabels, needsManualReview });
 
-    // Determine actions taken
-    const actionsTaken = [{ type: 'label', value: appliedLabels }];
+    // Determine actions taken with manual review flag
+    const actionsTaken = [
+      { type: 'label', value: appliedLabels },
+      ...(needsManualReview ? [{ type: 'needs_manual_review', value: true }] : [])
+    ];
     
-    // Suggest new rule if no rule matched and AI provided a category
+    // AI can always suggest new labels if it thinks they would be useful
     let ruleReinforcement = null;
     let suggestedNewLabel = null;
     
-    if (matchedRules.length === 0 && !categoryLabel && aiAnalysis?.suggested_label) {
-      ruleReinforcement = `Considérer l'ajout d'une règle pour le label "${aiAnalysis.suggested_label}"`;
+    // Suggest new label if AI provided one, regardless of whether rules matched
+    if (aiAnalysis?.suggested_label && !existingLabels.includes(aiAnalysis.suggested_label)) {
       suggestedNewLabel = aiAnalysis.suggested_label;
+      ruleReinforcement = `Nouveau label proposé : "${aiAnalysis.suggested_label}" - Valider pour créer une règle automatique`;
     }
 
     // Save to email history with upsert to avoid duplicates
@@ -603,17 +611,21 @@ Tu dois OBLIGATOIREMENT attribuer exactement 2 labels à chaque email :
 - Actions/Revue Manuelle - Email nécessitant vérification manuelle
 - Actions/Rien à faire - Email informatif légitime, aucune action requise
 
-### Règles de Priorité
-- Score 9-10 : Urgent ET important (facture impayée, deadline proche, problème critique)
-- Score 7-8 : Important mais pas urgent (projet en cours, information importante)
-- Score 5-6 : Normal (emails quotidiens, confirmations)
-- Score 3-4 : Faible priorité (newsletters, promotions)
-- Score 1-2 : Très faible (spam, marketing non sollicité)
+### Règles de Priorité (influencées par l'action requise)
+- Score 9-10 : Urgent ET important (facture impayée, deadline proche, problème critique) → Actions/A répondre
+- Score 7-8 : Important mais pas urgent (projet en cours, information importante) → Actions/A répondre
+- Score 5-6 : Normal (emails quotidiens, confirmations) → Actions/Revue Manuelle
+- Score 3-4 : Faible priorité (newsletters, promotions) → Actions/Rien à faire
+- Score 1-2 : Très faible (spam, marketing non sollicité) → Actions/A supprimer
 
 ### Validation
-- Si aucune catégorie ne correspond → "Needs Manual Review"
+- Si aucune catégorie ne correspond → flag "needs_manual_review" (pas de label)
 - Si aucune action ne correspond → "Actions/Revue Manuelle"
-- TOUJOURS retourner exactement 2 labels`;
+- TOUJOURS retourner exactement 2 labels (1 catégorie + 1 action)
+
+### Proposition de nouveaux labels
+- Si tu identifies une thématique récurrente qui n'existe pas encore dans les labels, propose-la dans "suggested_label"
+- Exemples : "Immobilier", "RDV Médicaux", "Voyages", "Famille", etc.`;
     
     // Récupérer TOUTES les règles actives avec leurs descriptions enrichies
     const { data: rules } = await supabase
@@ -801,6 +813,13 @@ function calculatePriorityScore(aiAnalysis: any, rule: any): number {
   // Adjust based on rule priority
   if (rule?.priority === 'high') score += 2;
   else if (rule?.priority === 'low') score -= 2;
+
+  // CRITICAL: Adjust based on action label - responding is more important than nothing
+  const actionLabel = aiAnalysis.action_label || '';
+  if (actionLabel.includes('A répondre')) score += 3;
+  else if (actionLabel.includes('Revue Manuelle')) score += 1;
+  else if (actionLabel.includes('Rien à faire')) score -= 2;
+  else if (actionLabel.includes('A supprimer')) score -= 3;
 
   // Adjust based on sentiment
   if (aiAnalysis.sentiment === 'negative') score += 1;
