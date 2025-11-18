@@ -29,7 +29,7 @@ export const EditRuleDialog = ({ open, onOpenChange, rule, onSuccess, ruleType =
     create_draft: rule.create_draft || ruleType === 'draft',
     auto_reply: rule.auto_reply || ruleType === 'auto-reply',
     notify_urgent: rule.notify_urgent || ruleType === 'notification',
-    contact_id: rule.contact_id || null,
+    google_contact_id: rule.google_contact_id || null,
     contact_group_id: rule.contact_group_id || null,
   });
 
@@ -43,9 +43,9 @@ export const EditRuleDialog = ({ open, onOpenChange, rule, onSuccess, ruleType =
         sender_pattern: formData.sender_pattern || null,
         keywords: formData.keywords ? formData.keywords.split(',').map(k => k.trim()).filter(Boolean) : null,
         description: formData.description || '',
-        exclude_newsletters: true, // Géré par keywords négatifs maintenant
-        exclude_marketing: true,   // Géré par keywords négatifs maintenant
-        contact_id: formData.contact_id || null,
+        exclude_newsletters: true,
+        exclude_marketing: true,
+        google_contact_id: formData.google_contact_id || null,
         contact_group_id: formData.contact_group_id || null,
       };
 
@@ -184,9 +184,9 @@ export const EditRuleDialog = ({ open, onOpenChange, rule, onSuccess, ruleType =
           </div>
 
           <ContactGroupSelector
-            contactId={formData.contact_id}
+            googleContactId={formData.google_contact_id}
             contactGroupId={formData.contact_group_id}
-            onContactChange={(id) => setFormData({ ...formData, contact_id: id })}
+            onContactChange={(id) => setFormData({ ...formData, google_contact_id: id })}
             onGroupChange={(id) => setFormData({ ...formData, contact_group_id: id })}
           />
 

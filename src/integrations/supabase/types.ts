@@ -211,8 +211,8 @@ export type Database = {
         Row: {
           conditions: Json | null
           contact_group_id: string | null
-          contact_id: string | null
           created_at: string | null
+          google_contact_id: string | null
           id: string
           name: string
           signature_id: string | null
@@ -223,8 +223,8 @@ export type Database = {
         Insert: {
           conditions?: Json | null
           contact_group_id?: string | null
-          contact_id?: string | null
           created_at?: string | null
+          google_contact_id?: string | null
           id?: string
           name: string
           signature_id?: string | null
@@ -235,8 +235,8 @@ export type Database = {
         Update: {
           conditions?: Json | null
           contact_group_id?: string | null
-          contact_id?: string | null
           created_at?: string | null
+          google_contact_id?: string | null
           id?: string
           name?: string
           signature_id?: string | null
@@ -253,10 +253,10 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "draft_rules_contact_id_fkey"
-            columns: ["contact_id"]
+            foreignKeyName: "draft_rules_google_contact_id_fkey"
+            columns: ["google_contact_id"]
             isOneToOne: false
-            referencedRelation: "contact_rules"
+            referencedRelation: "google_contacts"
             referencedColumns: ["id"]
           },
           {
@@ -372,12 +372,12 @@ export type Database = {
           auto_action: string | null
           auto_reply: boolean | null
           contact_group_id: string | null
-          contact_id: string | null
           create_draft: boolean | null
           created_at: string
           description: string | null
           exclude_marketing: boolean | null
           exclude_newsletters: boolean | null
+          google_contact_id: string | null
           id: string
           is_active: boolean
           keywords: string[] | null
@@ -394,12 +394,12 @@ export type Database = {
           auto_action?: string | null
           auto_reply?: boolean | null
           contact_group_id?: string | null
-          contact_id?: string | null
           create_draft?: boolean | null
           created_at?: string
           description?: string | null
           exclude_marketing?: boolean | null
           exclude_newsletters?: boolean | null
+          google_contact_id?: string | null
           id?: string
           is_active?: boolean
           keywords?: string[] | null
@@ -416,12 +416,12 @@ export type Database = {
           auto_action?: string | null
           auto_reply?: boolean | null
           contact_group_id?: string | null
-          contact_id?: string | null
           create_draft?: boolean | null
           created_at?: string
           description?: string | null
           exclude_marketing?: boolean | null
           exclude_newsletters?: boolean | null
+          google_contact_id?: string | null
           id?: string
           is_active?: boolean
           keywords?: string[] | null
@@ -443,10 +443,10 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "email_rules_contact_id_fkey"
-            columns: ["contact_id"]
+            foreignKeyName: "email_rules_google_contact_id_fkey"
+            columns: ["google_contact_id"]
             isOneToOne: false
-            referencedRelation: "contact_rules"
+            referencedRelation: "google_contacts"
             referencedColumns: ["id"]
           },
         ]

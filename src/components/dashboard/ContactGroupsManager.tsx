@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Trash2, Edit, Plus, Users } from "lucide-react";
+import { Trash2, Edit, Plus, Users, RefreshCw } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 interface ContactGroup {
@@ -40,6 +40,27 @@ export const ContactGroupsManager = () => {
       toast({ title: "Erreur", description: "Impossible de charger les groupes", variant: "destructive" });
     } else {
       setGroups(data || []);
+    }
+  };
+
+  const syncGoogleGroups = async () => {
+    setLoading(true);
+    try {
+      const { error } = await supabase.functions.invoke('google-contact-groups-sync');
+
+      if (error) throw error;
+
+      toast({ title: "Synchronisation réussie", description: "Vos groupes Google Contacts ont été synchronisés" });
+      await fetchGroups();
+    } catch (error: any) {
+      console.error("Error syncing Google groups:", error);
+      toast({ 
+        title: "Erreur", 
+        description: error.message || "Erreur lors de la synchronisation", 
+        variant: "destructive" 
+      });
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -126,10 +147,21 @@ export const ContactGroupsManager = () => {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Users className="h-5 w-5" />
-          Groupes de contacts
-        </CardTitle>
+        <div className="flex items-center justify-between">
+          <CardTitle className="flex items-center gap-2">
+            <Users className="h-5 w-5" />
+            Groupes de contacts
+          </CardTitle>
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={syncGoogleGroups}
+            disabled={loading}
+          >
+            <RefreshCw className={`mr-2 h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+            Synchroniser depuis Google
+          </Button>
+        </div>
       </CardHeader>
       <CardContent>
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>

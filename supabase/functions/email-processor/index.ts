@@ -486,17 +486,23 @@ serve(async (req) => {
     const categoryRule = (rules || []).find((r: any) => r.label_to_apply === categoryLabel);
     const shouldNotifyForCategoryLabel = categoryRule?.notify_urgent || false;
     
+    // Check if AI analysis failed - if so, don't send urgent notifications based on default values
+    const isAiAnalysisFailed = aiAnalysis.reasoning === 'AI analysis unavailable, using defaults';
+    
     // Send Telegram notification if:
-    // 1. Priority exceeds threshold
+    // 1. Priority exceeds threshold (but NOT if AI analysis failed)
     // 2. A matched rule has notify_urgent flag
     // 3. The category label's rule has notify_urgent flag
-    // 4. AI marked it as urgent for WhatsApp
-    // 5. AI analysis failed and needs attention (but not urgent notification)
-    const isAiAnalysisFailed = aiAnalysis.reasoning === 'AI analysis unavailable, using defaults';
-    const shouldNotify = priorityScore >= threshold || shouldNotifyUrgent || shouldNotifyForCategoryLabel || aiAnalysis.is_urgent_whatsapp;
+    // 4. AI marked it as urgent for WhatsApp (but NOT if AI analysis failed)
+    const shouldNotify = !isAiAnalysisFailed && (
+      priorityScore >= threshold || 
+      shouldNotifyUrgent || 
+      shouldNotifyForCategoryLabel || 
+      aiAnalysis.is_urgent_whatsapp
+    );
     
     // Special handling for AI analysis failures: notify but mark as error, not urgent
-    if (isAiAnalysisFailed && !shouldNotify) {
+    if (isAiAnalysisFailed) {
       console.log('AI analysis failed - sending error notification');
       await supabase.functions.invoke('telegram-sender', {
         body: {
