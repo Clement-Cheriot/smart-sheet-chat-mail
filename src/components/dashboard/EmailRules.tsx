@@ -435,7 +435,15 @@ export const EmailRules = () => {
           >
             <div className="flex items-start justify-between gap-4">
               <div className="flex-1">
-                <div className="flex items-center gap-2 mb-2 flex-wrap">
+                {/* Label title */}
+                {rule.label_to_apply && (
+                  <h3 className="text-lg font-semibold mb-3">
+                    {rule.label_to_apply}
+                  </h3>
+                )}
+                
+                {/* Badges row */}
+                <div className="flex items-center gap-2 mb-3 flex-wrap">
                   <Badge variant={rule.is_active ? 'default' : 'secondary'}>
                     {rule.is_active ? 'Active' : 'Inactive'}
                   </Badge>
@@ -458,17 +466,16 @@ export const EmailRules = () => {
                     </Badge>
                   )}
                 </div>
-                <p className="font-medium mb-1">
-                  Expéditeur : {rule.sender_pattern || 'Tous'}
+                
+                {/* Sender pattern */}
+                <p className="text-sm text-muted-foreground mb-1">
+                  <span className="font-medium">Expéditeur :</span> {rule.sender_pattern || 'Tous'}
                 </p>
+                
+                {/* Keywords */}
                 {rule.keywords && rule.keywords.length > 0 && (
                   <p className="text-sm text-muted-foreground mb-2">
-                    Mots-clés : {rule.keywords.join(', ')}
-                  </p>
-                )}
-                {rule.label_to_apply && (
-                  <p className="text-sm mb-1">
-                    Label : <span className="font-medium">{rule.label_to_apply}</span>
+                    <span className="font-medium">Mots-clés :</span> {rule.keywords.join(', ')}
                   </p>
                 )}
                 {(rule.create_draft || rule.auto_reply) && (rule.exclude_newsletters || rule.exclude_marketing) && (
