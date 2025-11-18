@@ -16,6 +16,7 @@ import { DraftRules } from '@/components/dashboard/DraftRules';
 import { AutoResponseRules } from '@/components/dashboard/AutoResponseRules';
 import { CalendarRules } from '@/components/dashboard/CalendarRules';
 import { ContactRules } from '@/components/dashboard/ContactRules';
+import { GroupBasedRules } from '@/components/dashboard/GroupBasedRules';
 
 const Dashboard = () => {
   const { user, loading, signOut } = useAuth();
@@ -123,6 +124,7 @@ const Dashboard = () => {
                   </TabsContent>
 
                   <TabsContent value="contacts" className="space-y-4">
+                    <GroupBasedRules />
                     <ContactRules />
                   </TabsContent>
 
