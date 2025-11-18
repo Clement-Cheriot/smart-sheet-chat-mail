@@ -17,7 +17,7 @@ interface DraftRule {
   template: string;
   signature_id: string | null;
   conditions: any;
-  contact_id?: string | null;
+  google_contact_id?: string | null;
   contact_group_id?: string | null;
   created_at: string;
   updated_at: string;
@@ -38,7 +38,7 @@ export const DraftRules = () => {
     template: "", 
     signature_id: "", 
     conditions: "",
-    contact_id: null as string | null,
+    google_contact_id: null as string | null,
     contact_group_id: null as string | null,
   });
   const { toast } = useToast();
@@ -98,7 +98,7 @@ export const DraftRules = () => {
         template: formData.template.trim(),
         signature_id: formData.signature_id === "none" ? null : formData.signature_id || null,
         conditions,
-        contact_id: formData.contact_id || null,
+        google_contact_id: formData.google_contact_id || null,
         contact_group_id: formData.contact_group_id || null,
       };
 
@@ -153,7 +153,7 @@ export const DraftRules = () => {
       template: "", 
       signature_id: "none", 
       conditions: "",
-      contact_id: null,
+      google_contact_id: null,
       contact_group_id: null,
     });
     setEditingRule(null);
@@ -166,7 +166,7 @@ export const DraftRules = () => {
       template: rule.template,
       signature_id: rule.signature_id || "none",
       conditions: rule.conditions ? JSON.stringify(rule.conditions, null, 2) : "",
-      contact_id: rule.contact_id || null,
+      google_contact_id: rule.google_contact_id || null,
       contact_group_id: rule.contact_group_id || null,
     });
     setIsDialogOpen(true);
@@ -208,9 +208,9 @@ export const DraftRules = () => {
                 </Select>
               </div>
               <ContactGroupSelector
-                contactId={formData.contact_id}
+                googleContactId={formData.google_contact_id}
                 contactGroupId={formData.contact_group_id}
-                onContactChange={(id) => setFormData({ ...formData, contact_id: id })}
+                onContactChange={(id) => setFormData({ ...formData, google_contact_id: id })}
                 onGroupChange={(id) => setFormData({ ...formData, contact_group_id: id })}
               />
               <div>

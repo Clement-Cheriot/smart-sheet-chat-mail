@@ -15,14 +15,14 @@ interface ContactGroup {
 }
 
 interface ContactGroupSelectorProps {
-  contactId: string | null;
+  googleContactId: string | null;
   contactGroupId: string | null;
-  onContactChange: (contactId: string | null) => void;
+  onContactChange: (googleContactId: string | null) => void;
   onGroupChange: (groupId: string | null) => void;
 }
 
 export const ContactGroupSelector = ({ 
-  contactId, 
+  googleContactId, 
   contactGroupId, 
   onContactChange, 
   onGroupChange 
@@ -37,7 +37,7 @@ export const ContactGroupSelector = ({
 
   const fetchContacts = async () => {
     const { data } = await supabase
-      .from("contact_rules")
+      .from("google_contacts")
       .select("id, email, name")
       .order("name", { ascending: true });
     setContacts(data || []);
@@ -56,7 +56,7 @@ export const ContactGroupSelector = ({
       <div className="space-y-2">
         <Label>Contact spécifique</Label>
         <Select 
-          value={contactId || "none"} 
+          value={googleContactId || "none"} 
           onValueChange={(value) => {
             onContactChange(value === "none" ? null : value);
             if (value !== "none") onGroupChange(null);
@@ -99,7 +99,7 @@ export const ContactGroupSelector = ({
         </Select>
       </div>
 
-      {!contactId && !contactGroupId && (
+      {!googleContactId && !contactGroupId && (
         <p className="text-xs text-muted-foreground">
           Ou utilisez le champ "Expéditeur" ci-dessus pour un pattern d'email
         </p>
