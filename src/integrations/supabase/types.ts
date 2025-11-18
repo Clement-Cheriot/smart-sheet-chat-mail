@@ -130,6 +130,36 @@ export type Database = {
         }
         Relationships: []
       }
+      contact_groups: {
+        Row: {
+          created_at: string | null
+          description: string | null
+          google_group_id: string | null
+          id: string
+          name: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          description?: string | null
+          google_group_id?: string | null
+          id?: string
+          name: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          description?: string | null
+          google_group_id?: string | null
+          id?: string
+          name?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       contact_rules: {
         Row: {
           auto_reply_enabled: boolean | null
@@ -180,6 +210,8 @@ export type Database = {
       draft_rules: {
         Row: {
           conditions: Json | null
+          contact_group_id: string | null
+          contact_id: string | null
           created_at: string | null
           id: string
           name: string
@@ -190,6 +222,8 @@ export type Database = {
         }
         Insert: {
           conditions?: Json | null
+          contact_group_id?: string | null
+          contact_id?: string | null
           created_at?: string | null
           id?: string
           name: string
@@ -200,6 +234,8 @@ export type Database = {
         }
         Update: {
           conditions?: Json | null
+          contact_group_id?: string | null
+          contact_id?: string | null
           created_at?: string | null
           id?: string
           name?: string
@@ -209,6 +245,20 @@ export type Database = {
           user_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "draft_rules_contact_group_id_fkey"
+            columns: ["contact_group_id"]
+            isOneToOne: false
+            referencedRelation: "contact_groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "draft_rules_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contact_rules"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "draft_rules_signature_id_fkey"
             columns: ["signature_id"]
@@ -321,6 +371,8 @@ export type Database = {
         Row: {
           auto_action: string | null
           auto_reply: boolean | null
+          contact_group_id: string | null
+          contact_id: string | null
           create_draft: boolean | null
           created_at: string
           description: string | null
@@ -341,6 +393,8 @@ export type Database = {
         Insert: {
           auto_action?: string | null
           auto_reply?: boolean | null
+          contact_group_id?: string | null
+          contact_id?: string | null
           create_draft?: boolean | null
           created_at?: string
           description?: string | null
@@ -361,6 +415,8 @@ export type Database = {
         Update: {
           auto_action?: string | null
           auto_reply?: boolean | null
+          contact_group_id?: string | null
+          contact_id?: string | null
           create_draft?: boolean | null
           created_at?: string
           description?: string | null
@@ -378,7 +434,22 @@ export type Database = {
           updated_at?: string
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "email_rules_contact_group_id_fkey"
+            columns: ["contact_group_id"]
+            isOneToOne: false
+            referencedRelation: "contact_groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_rules_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contact_rules"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       email_summaries: {
         Row: {

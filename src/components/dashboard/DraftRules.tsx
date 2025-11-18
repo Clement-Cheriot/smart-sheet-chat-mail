@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card } from "@/components/ui/card";
 import { Trash2, Edit, Plus } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { ContactGroupSelector } from "./ContactGroupSelector";
 
 interface DraftRule {
   id: string;
@@ -16,6 +17,8 @@ interface DraftRule {
   template: string;
   signature_id: string | null;
   conditions: any;
+  contact_id?: string | null;
+  contact_group_id?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -30,7 +33,14 @@ export const DraftRules = () => {
   const [signatures, setSignatures] = useState<Signature[]>([]);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingRule, setEditingRule] = useState<DraftRule | null>(null);
-  const [formData, setFormData] = useState({ name: "", template: "", signature_id: "", conditions: "" });
+  const [formData, setFormData] = useState({ 
+    name: "", 
+    template: "", 
+    signature_id: "", 
+    conditions: "",
+    contact_id: null as string | null,
+    contact_group_id: null as string | null,
+  });
   const { toast } = useToast();
 
   useEffect(() => {
@@ -87,7 +97,9 @@ export const DraftRules = () => {
         name: formData.name.trim(),
         template: formData.template.trim(),
         signature_id: formData.signature_id === "none" ? null : formData.signature_id || null,
-        conditions
+        conditions,
+        contact_id: formData.contact_id || null,
+        contact_group_id: formData.contact_group_id || null,
       };
 
       if (editingRule) {
@@ -136,7 +148,14 @@ export const DraftRules = () => {
   };
 
   const resetForm = () => {
-    setFormData({ name: "", template: "", signature_id: "none", conditions: "" });
+    setFormData({ 
+      name: "", 
+      template: "", 
+      signature_id: "none", 
+      conditions: "",
+      contact_id: null,
+      contact_group_id: null,
+    });
     setEditingRule(null);
   };
 
@@ -146,7 +165,9 @@ export const DraftRules = () => {
       name: rule.name,
       template: rule.template,
       signature_id: rule.signature_id || "none",
-      conditions: rule.conditions ? JSON.stringify(rule.conditions, null, 2) : ""
+      conditions: rule.conditions ? JSON.stringify(rule.conditions, null, 2) : "",
+      contact_id: rule.contact_id || null,
+      contact_group_id: rule.contact_group_id || null,
     });
     setIsDialogOpen(true);
   };
@@ -186,6 +207,12 @@ export const DraftRules = () => {
                   </SelectContent>
                 </Select>
               </div>
+              <ContactGroupSelector
+                contactId={formData.contact_id}
+                contactGroupId={formData.contact_group_id}
+                onContactChange={(id) => setFormData({ ...formData, contact_id: id })}
+                onGroupChange={(id) => setFormData({ ...formData, contact_group_id: id })}
+              />
               <div>
                 <Label>Conditions (JSON optionnel)</Label>
                 <Textarea rows={4} value={formData.conditions} onChange={(e) => setFormData({ ...formData, conditions: e.target.value })} placeholder='{"labels": ["PRO"], "keywords": ["urgent"]}' />
