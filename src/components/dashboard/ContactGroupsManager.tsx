@@ -18,12 +18,21 @@ interface ContactGroup {
   updated_at: string;
 }
 
+interface Contact {
+  id: string;
+  name: string | null;
+  email: string;
+  phone: string | null;
+}
+
 export const ContactGroupsManager = () => {
   const [groups, setGroups] = useState<ContactGroup[]>([]);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingGroup, setEditingGroup] = useState<ContactGroup | null>(null);
   const [formData, setFormData] = useState({ name: "", description: "" });
   const [loading, setLoading] = useState(false);
+  const [selectedGroup, setSelectedGroup] = useState<ContactGroup | null>(null);
+  const [groupContacts, setGroupContacts] = useState<Contact[]>([]);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -144,6 +153,36 @@ export const ContactGroupsManager = () => {
     setIsDialogOpen(true);
   };
 
+  const loadGroupContacts = async (group: ContactGroup) => {
+    setSelectedGroup(group);
+    setLoading(true);
+    try {
+      // Get all contacts and filter by group label
+      const { data, error } = await supabase
+        .from("google_contacts")
+        .select("id, name, email, phone, labels")
+        .order("name", { ascending: true });
+
+      if (error) throw error;
+
+      // Filter contacts that have this group's google_group_id in their labels
+      const filtered = (data || []).filter(contact => 
+        contact.labels?.includes(group.google_group_id || '')
+      );
+
+      setGroupContacts(filtered);
+    } catch (error: any) {
+      console.error("Error loading group contacts:", error);
+      toast({ 
+        title: "Erreur", 
+        description: "Impossible de charger les contacts du groupe", 
+        variant: "destructive" 
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <Card>
       <CardHeader>
@@ -211,30 +250,61 @@ export const ContactGroupsManager = () => {
             groups.map((group) => (
               <div
                 key={group.id}
-                className="flex items-center justify-between p-3 border rounded-lg hover:bg-accent/50 transition-colors"
+                className="border rounded-lg overflow-hidden"
               >
-                <div className="flex-1">
-                  <p className="font-medium">{group.name}</p>
-                  {group.description && (
-                    <p className="text-sm text-muted-foreground">{group.description}</p>
-                  )}
+                <div
+                  className="flex items-center justify-between p-3 hover:bg-accent/50 transition-colors cursor-pointer"
+                  onClick={() => selectedGroup?.id === group.id ? setSelectedGroup(null) : loadGroupContacts(group)}
+                >
+                  <div className="flex-1">
+                    <p className="font-medium">{group.name}</p>
+                    {group.description && (
+                      <p className="text-sm text-muted-foreground">{group.description}</p>
+                    )}
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        openEditDialog(group);
+                      }}
+                    >
+                      <Edit className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDelete(group.id);
+                      }}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </div>
-                <div className="flex gap-2">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => openEditDialog(group)}
-                  >
-                    <Edit className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => handleDelete(group.id)}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </div>
+                
+                {selectedGroup?.id === group.id && (
+                  <div className="border-t bg-muted/30 p-3">
+                    {loading ? (
+                      <p className="text-sm text-muted-foreground">Chargement...</p>
+                    ) : groupContacts.length === 0 ? (
+                      <p className="text-sm text-muted-foreground">Aucun contact dans ce groupe</p>
+                    ) : (
+                      <div className="space-y-2">
+                        {groupContacts.map((contact) => (
+                          <div key={contact.id} className="text-sm">
+                            <p className="font-medium">{contact.name || contact.email}</p>
+                            {contact.name && <p className="text-muted-foreground">{contact.email}</p>}
+                            {contact.phone && <p className="text-muted-foreground">{contact.phone}</p>}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             ))
           )}

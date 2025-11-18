@@ -26,7 +26,7 @@ export const GoogleContactsSync = () => {
   const [syncing, setSyncing] = useState(false);
   const [lastSync, setLastSync] = useState<Date | null>(null);
   const [selectedGroup, setSelectedGroup] = useState<string>('all');
-  const [availableGroups, setAvailableGroups] = useState<string[]>([]);
+  const [availableGroups, setAvailableGroups] = useState<Array<{ id: string; name: string }>>([]);
   const { user } = useAuth();
 
   useEffect(() => {
@@ -47,12 +47,33 @@ export const GoogleContactsSync = () => {
 
       setContacts((data || []) as any);
       
-      // Extract unique groups/labels
-      const groups = new Set<string>();
-      (data || []).forEach((contact: Contact) => {
-        contact.labels?.forEach(label => groups.add(label));
+      // Get contact groups to map IDs to names
+      const { data: groupsData } = await supabase
+        .from('contact_groups')
+        .select('id, name, google_group_id')
+        .eq('user_id', user?.id);
+
+      // Create a map of google_group_id to group name
+      const groupMap = new Map<string, string>();
+      (groupsData || []).forEach((group: any) => {
+        if (group.google_group_id) {
+          groupMap.set(group.google_group_id, group.name);
+        }
       });
-      setAvailableGroups(Array.from(groups).sort());
+
+      // Extract unique groups with their names
+      const groupsSet = new Map<string, string>();
+      (data || []).forEach((contact: Contact) => {
+        contact.labels?.forEach(labelId => {
+          const groupName = groupMap.get(labelId);
+          if (groupName) {
+            groupsSet.set(labelId, groupName);
+          }
+        });
+      });
+      
+      const groupsArray = Array.from(groupsSet, ([id, name]) => ({ id, name }));
+      setAvailableGroups(groupsArray.sort((a, b) => a.name.localeCompare(b.name)));
       
       if (data && data.length > 0) {
         const mostRecent = data.reduce((latest: Date, contact: any) => {
@@ -207,8 +228,8 @@ export const GoogleContactsSync = () => {
                 <SelectContent>
                   <SelectItem value="all">Tous les contacts</SelectItem>
                   {availableGroups.map(group => (
-                    <SelectItem key={group} value={group}>
-                      {group} ({contacts.filter(c => c.labels?.includes(group)).length})
+                    <SelectItem key={group.id} value={group.id}>
+                      {group.name} ({contacts.filter(c => c.labels?.includes(group.id)).length})
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -218,10 +239,13 @@ export const GoogleContactsSync = () => {
                 <Button 
                   variant="outline" 
                   size="sm"
-                  onClick={() => createContactRulesForGroup(selectedGroup)}
+                  onClick={() => {
+                    const groupName = availableGroups.find(g => g.id === selectedGroup)?.name;
+                    if (groupName) createContactRulesForGroup(groupName);
+                  }}
                 >
                   <Plus className="mr-2 h-4 w-4" />
-                  Créer règles pour "{selectedGroup}"
+                  Créer règles pour "{availableGroups.find(g => g.id === selectedGroup)?.name}"
                 </Button>
               )}
             </div>
