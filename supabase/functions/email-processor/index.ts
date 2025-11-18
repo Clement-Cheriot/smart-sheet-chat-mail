@@ -219,7 +219,6 @@ serve(async (req) => {
     if (!hasCategory) {
       console.warn('Missing category label, flagging for manual review');
       needsManualReview = true;
-      // Don't add "Needs Manual Review" as a label anymore
     }
     
     // Fix: If missing action, add a default one
@@ -492,7 +491,27 @@ serve(async (req) => {
     // 2. A matched rule has notify_urgent flag
     // 3. The category label's rule has notify_urgent flag
     // 4. AI marked it as urgent for WhatsApp
-    if (priorityScore >= threshold || shouldNotifyUrgent || shouldNotifyForCategoryLabel || aiAnalysis.is_urgent_whatsapp) {
+    // 5. AI analysis failed and needs attention (but not urgent notification)
+    const isAiAnalysisFailed = aiAnalysis.reasoning === 'AI analysis unavailable, using defaults';
+    const shouldNotify = priorityScore >= threshold || shouldNotifyUrgent || shouldNotifyForCategoryLabel || aiAnalysis.is_urgent_whatsapp;
+    
+    // Special handling for AI analysis failures: notify but mark as error, not urgent
+    if (isAiAnalysisFailed && !shouldNotify) {
+      console.log('AI analysis failed - sending error notification');
+      await supabase.functions.invoke('telegram-sender', {
+        body: {
+          userId: emailData.userId,
+          message: `⚠️ *Erreur d'analyse IA*\n\n*De:* ${emailData.sender}\n*Sujet:* ${emailData.subject}\n\n❌ L'analyse IA a échoué pour cet email. Veuillez le vérifier manuellement.\n\n📧 Consultez l'application pour plus de détails.`,
+        }
+      });
+      await supabase
+        .from('email_history')
+        .update({ 
+          telegram_notified: true,
+          actions_taken: [...actionsTaken, { type: 'telegram_error', value: true, reasoning: 'AI analysis failed' }]
+        })
+        .eq('id', historyRecord.id);
+    } else if (shouldNotify) {
       console.log('Sending Telegram notification', { 
         reason: {
           priorityExceedsThreshold: priorityScore >= threshold,
@@ -724,16 +743,16 @@ Fournis une réponse JSON avec:
     throw new Error('Could not parse AI response as JSON');
   } catch (error) {
     console.error('AI analysis error:', error);
-    // Return default analysis
+    // Return default analysis with low priority to avoid false urgent notifications
     return {
-      urgency: 5,
+      urgency: 3, // Low urgency to avoid triggering notifications
       key_entities: [],
       suggested_action: 'review',
       body_summary: body.substring(0, 200),
       reasoning: 'AI analysis unavailable, using defaults',
-      confidence: 50,
-      category_label: 'Needs Manual Review',
-      action_label: 'Actions/Revue Manuelle',
+      confidence: 30,
+      category_label: null, // No category when AI fails
+      action_label: 'Actions/Revue Manuelle', // Manual review required
       is_phishing: false,
       is_spam: false,
       matched_label: null,
