@@ -4,9 +4,10 @@ import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from '@/hooks/use-toast';
-import { RefreshCw, Users, Mail, Phone } from 'lucide-react';
+import { RefreshCw, Users, Mail, Phone, Plus } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { fr } from 'date-fns/locale';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 interface Contact {
   id: string;
@@ -24,6 +25,8 @@ export const GoogleContactsSync = () => {
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [lastSync, setLastSync] = useState<Date | null>(null);
+  const [selectedGroup, setSelectedGroup] = useState<string>('all');
+  const [availableGroups, setAvailableGroups] = useState<string[]>([]);
   const { user } = useAuth();
 
   useEffect(() => {
@@ -43,6 +46,13 @@ export const GoogleContactsSync = () => {
       if (error) throw error;
 
       setContacts((data || []) as any);
+      
+      // Extract unique groups/labels
+      const groups = new Set<string>();
+      (data || []).forEach((contact: Contact) => {
+        contact.labels?.forEach(label => groups.add(label));
+      });
+      setAvailableGroups(Array.from(groups).sort());
       
       if (data && data.length > 0) {
         const mostRecent = data.reduce((latest: Date, contact: any) => {
@@ -80,13 +90,76 @@ export const GoogleContactsSync = () => {
       console.error('Error syncing contacts:', error);
       toast({
         title: 'Erreur',
-        description: error.message || 'Impossible de synchroniser les contacts',
+        description: error.message || 'Erreur lors de la synchronisation',
         variant: 'destructive',
       });
     } finally {
       setSyncing(false);
     }
   };
+
+  const createContactRulesForGroup = async (groupName: string) => {
+    try {
+      const groupContacts = contacts.filter(c => c.labels?.includes(groupName));
+      
+      if (groupContacts.length === 0) {
+        toast({
+          title: 'Aucun contact',
+          description: 'Aucun contact dans ce groupe',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      // Check which contacts don't already have rules
+      const { data: existingRules } = await supabase
+        .from('contact_rules')
+        .select('email')
+        .eq('user_id', user?.id);
+
+      const existingEmails = new Set(existingRules?.map(r => r.email) || []);
+      const newContacts = groupContacts.filter(c => !existingEmails.has(c.email));
+
+      if (newContacts.length === 0) {
+        toast({
+          title: 'Aucun nouveau contact',
+          description: 'Tous les contacts de ce groupe ont déjà des règles',
+        });
+        return;
+      }
+
+      // Create contact rules for new contacts
+      const rulesToInsert = newContacts.map(contact => ({
+        user_id: user?.id,
+        email: contact.email,
+        name: contact.name,
+        notes: `Ajouté depuis le groupe: ${groupName}`,
+        auto_reply_enabled: false,
+      }));
+
+      const { error } = await supabase
+        .from('contact_rules')
+        .insert(rulesToInsert);
+
+      if (error) throw error;
+
+      toast({
+        title: 'Règles créées',
+        description: `${newContacts.length} règles de contact créées pour le groupe "${groupName}"`,
+      });
+    } catch (error: any) {
+      console.error('Error creating contact rules:', error);
+      toast({
+        title: 'Erreur',
+        description: error.message || 'Erreur lors de la création des règles',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const filteredContacts = selectedGroup === 'all' 
+    ? contacts 
+    : contacts.filter(c => c.labels?.includes(selectedGroup));
 
   if (loading) {
     return (
@@ -123,8 +196,38 @@ export const GoogleContactsSync = () => {
             </Button>
           </div>
         </CardHeader>
-        <CardContent>
-          {contacts.length === 0 ? (
+        <CardContent className="space-y-4">
+          {/* Filter and Group Actions */}
+          {availableGroups.length > 0 && (
+            <div className="flex gap-2 items-center">
+              <Select value={selectedGroup} onValueChange={setSelectedGroup}>
+                <SelectTrigger className="w-[200px]">
+                  <SelectValue placeholder="Filtrer par groupe" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Tous les contacts</SelectItem>
+                  {availableGroups.map(group => (
+                    <SelectItem key={group} value={group}>
+                      {group} ({contacts.filter(c => c.labels?.includes(group)).length})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              
+              {selectedGroup !== 'all' && (
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => createContactRulesForGroup(selectedGroup)}
+                >
+                  <Plus className="mr-2 h-4 w-4" />
+                  Créer règles pour "{selectedGroup}"
+                </Button>
+              )}
+            </div>
+          )}
+
+          {filteredContacts.length === 0 ? (
             <div className="text-center py-8">
               <Users className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
               <p className="text-muted-foreground mb-4">
@@ -137,7 +240,7 @@ export const GoogleContactsSync = () => {
             </div>
           ) : (
             <div className="space-y-2 max-h-[400px] overflow-y-auto">
-              {contacts.map((contact) => (
+              {filteredContacts.map((contact) => (
                 <div
                   key={contact.id}
                   className="flex items-center justify-between p-3 border rounded-lg hover:bg-accent/50 transition-colors"
