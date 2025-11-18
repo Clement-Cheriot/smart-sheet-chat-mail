@@ -57,6 +57,15 @@ serve(async (req) => {
       const errorBody = await contactsResponse.text();
       console.error('Contacts API error:', contactsResponse.status, errorBody);
       
+      // Check for People API not enabled error
+      if (contactsResponse.status === 403 && errorBody.includes('People API has not been used')) {
+        throw new Error(
+          'L\'API Google People n\'est pas activée dans votre projet Google Cloud. ' +
+          'Activez-la ici : https://console.developers.google.com/apis/api/people.googleapis.com/overview?project=868541832935 ' +
+          'puis attendez 2-3 minutes avant de réessayer.'
+        );
+      }
+      
       // Try to refresh token if expired or insufficient permissions
       if (contactsResponse.status === 401 || contactsResponse.status === 403) {
         console.log('Attempting to refresh access token...');
