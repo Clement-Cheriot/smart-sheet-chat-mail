@@ -224,14 +224,28 @@ serve(async (req) => {
         const date = getHeader('date');
         const receivedAtISO = date ? new Date(date).toISOString() : new Date().toISOString();
         
-        // Extract body
+        // Extract body with proper UTF-8 decoding
+        const decodeBase64 = (base64: string): string => {
+          try {
+            const binaryString = atob(base64.replace(/-/g, '+').replace(/_/g, '/'));
+            const bytes = new Uint8Array(binaryString.length);
+            for (let i = 0; i < binaryString.length; i++) {
+              bytes[i] = binaryString.charCodeAt(i);
+            }
+            return new TextDecoder('utf-8').decode(bytes);
+          } catch (e) {
+            console.error('Error decoding base64:', e);
+            return atob(base64.replace(/-/g, '+').replace(/_/g, '/')); // Fallback
+          }
+        };
+        
         let body = '';
         if (fullMessage.payload?.body?.data) {
-          body = atob(fullMessage.payload.body.data.replace(/-/g, '+').replace(/_/g, '/'));
+          body = decodeBase64(fullMessage.payload.body.data);
         } else if (fullMessage.payload?.parts) {
           for (const part of fullMessage.payload.parts) {
             if (part.mimeType === 'text/plain' && part.body?.data) {
-              body = atob(part.body.data.replace(/-/g, '+').replace(/_/g, '/'));
+              body = decodeBase64(part.body.data);
               break;
             }
           }
