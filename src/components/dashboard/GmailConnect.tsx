@@ -381,6 +381,7 @@ export const GmailConnect = () => {
             <li>• Modifier les labels</li>
             <li>• Créer des brouillons</li>
             <li>• Créer des événements dans votre calendrier Google</li>
+            <li>• Accéder à vos contacts Google</li>
           </ul>
         </div>
       </CardContent>
