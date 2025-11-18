@@ -41,6 +41,7 @@ serve(async (req) => {
     const tokens = config.gmail_credentials as any;
 
     // Fetch contacts from Google People API
+    console.log('Fetching contacts from Google People API...');
     const contactsResponse = await fetch(
       'https://people.googleapis.com/v1/people/me/connections?personFields=names,emailAddresses,phoneNumbers,organizations,userDefined&pageSize=1000',
       {
@@ -50,21 +51,34 @@ serve(async (req) => {
       }
     );
 
+    console.log('Contacts API response status:', contactsResponse.status);
+    
     if (!contactsResponse.ok) {
-      // Try to refresh token if expired
-      if (contactsResponse.status === 401) {
+      const errorBody = await contactsResponse.text();
+      console.error('Contacts API error:', contactsResponse.status, errorBody);
+      
+      // Try to refresh token if expired or insufficient permissions
+      if (contactsResponse.status === 401 || contactsResponse.status === 403) {
+        console.log('Attempting to refresh access token...');
         const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
           method: 'POST',
           headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
           body: new URLSearchParams({
-            client_id: Deno.env.get('GMAIL_CLIENT_ID') || '',
-            client_secret: Deno.env.get('GMAIL_CLIENT_SECRET') || '',
+            client_id: Deno.env.get('GOOGLE_OAUTH_CLIENT_ID') || '',
+            client_secret: Deno.env.get('GOOGLE_OAUTH_CLIENT_SECRET') || '',
             refresh_token: tokens.refresh_token,
             grant_type: 'refresh_token',
           }),
         });
 
+        if (!tokenResponse.ok) {
+          const errorBody = await tokenResponse.text();
+          console.error('Token refresh failed:', tokenResponse.status, errorBody);
+          throw new Error(`Failed to refresh token: ${errorBody}`);
+        }
+
         const newTokens = await tokenResponse.json();
+        console.log('Token refreshed successfully');
         
         // Update tokens in user_api_configs
         const updatedCredentials = {
@@ -89,16 +103,20 @@ serve(async (req) => {
         );
         
         if (!retryResponse.ok) {
-          throw new Error('Failed to fetch contacts after token refresh');
+          const retryError = await retryResponse.text();
+          console.error('Retry failed:', retryResponse.status, retryError);
+          throw new Error(`Failed to fetch contacts after token refresh: ${retryError}`);
         }
         
         const contactsData = await retryResponse.json();
+        console.log(`Successfully fetched ${contactsData.connections?.length || 0} contacts`);
         await syncContacts(supabaseClient, user.id, contactsData.connections || []);
       } else {
-        throw new Error('Failed to fetch contacts');
+        throw new Error(`Failed to fetch contacts: ${errorBody}`);
       }
     } else {
       const contactsData = await contactsResponse.json();
+      console.log(`Successfully fetched ${contactsData.connections?.length || 0} contacts`);
       await syncContacts(supabaseClient, user.id, contactsData.connections || []);
     }
 
