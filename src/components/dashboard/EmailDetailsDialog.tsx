@@ -15,7 +15,8 @@ import {
   Bot,
   MessageSquare,
   ThumbsUp,
-  ThumbsDown
+  ThumbsDown,
+  UserPlus
 } from 'lucide-react';
 
 interface EmailDetailsDialogProps {
@@ -33,6 +34,71 @@ export const EmailDetailsDialog = ({ email, open, onOpenChange, onEmailUpdated }
 
   const aiAnalysis = email.ai_analysis || {};
   const calendarDetails = email.calendar_details;
+
+  // Extract email address from sender (format: "Name <email@domain.com>" or just "email@domain.com")
+  const extractEmail = (sender: string) => {
+    const match = sender.match(/<(.+?)>/) || sender.match(/([^\s<]+@[^\s>]+)/);
+    return match ? match[1] : sender;
+  };
+
+  const senderEmail = extractEmail(email.sender);
+
+  const handleAddToContacts = async () => {
+    setLoading(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('User not authenticated');
+
+      // Extract name from sender if available
+      const nameMatch = email.sender.match(/^(.+?)\s*</);
+      const senderName = nameMatch ? nameMatch[1].trim() : null;
+
+      // Check if contact rule already exists
+      const { data: existing } = await supabase
+        .from('contact_rules')
+        .select('id')
+        .eq('user_id', user.id)
+        .eq('email', senderEmail)
+        .maybeSingle();
+
+      if (existing) {
+        toast({ 
+          title: "Contact déjà existant", 
+          description: "Ce contact est déjà dans vos règles de contacts.",
+          variant: "default" 
+        });
+        setLoading(false);
+        return;
+      }
+
+      const { error } = await supabase
+        .from('contact_rules')
+        .insert({
+          user_id: user.id,
+          email: senderEmail,
+          name: senderName,
+          notes: `Ajouté depuis l'email: ${email.subject || 'Sans objet'}`,
+          auto_reply_enabled: false,
+        });
+
+      if (error) throw error;
+
+      toast({ 
+        title: "Contact ajouté", 
+        description: `${senderEmail} a été ajouté à vos contacts.` 
+      });
+      onEmailUpdated();
+    } catch (error: any) {
+      console.error('Error adding contact:', error);
+      toast({ 
+        title: "Erreur", 
+        description: error.message || "Impossible d'ajouter le contact",
+        variant: "destructive" 
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleCreateLabel = async (labelName: string) => {
     setLoading(true);
@@ -197,68 +263,94 @@ export const EmailDetailsDialog = ({ email, open, onOpenChange, onEmailUpdated }
           )}
 
           {/* Suggestions et Actions IA */}
-          {(email.suggested_new_label || email.needs_calendar_action || email.draft_content) && (
-            <div className="space-y-3">
-              <p className="text-sm font-medium flex items-center gap-2">
-                <Lightbulb className="h-4 w-4" />
-                Actions IA disponibles
-              </p>
+          <div className="space-y-3">
+            <p className="text-sm font-medium flex items-center gap-2">
+              <Lightbulb className="h-4 w-4" />
+              Actions IA disponibles
+            </p>
 
-              {/* Proposition de nouveau label */}
-              {email.suggested_new_label && (
-                <Alert className="border-blue-200 bg-blue-50 dark:bg-blue-950">
-                  <Lightbulb className="h-4 w-4 text-blue-600" />
-                  <AlertDescription>
-                    <div className="space-y-3">
-                      <div>
-                        <p className="font-medium text-blue-900 dark:text-blue-100">💡 Proposition de label</p>
-                        <p className="text-sm text-blue-800 dark:text-blue-200 mt-1">
-                          L'IA suggère de créer le label "<strong>{email.suggested_new_label}</strong>" pour mieux catégoriser ce type d'email.
+            {/* Proposition de nouveau label */}
+            {email.suggested_new_label && (
+              <Alert className="border-blue-200 bg-blue-50 dark:bg-blue-950">
+                <Lightbulb className="h-4 w-4 text-blue-600" />
+                <AlertDescription>
+                  <div className="space-y-3">
+                    <div>
+                      <p className="font-medium text-blue-900 dark:text-blue-100">💡 Proposition de label</p>
+                      <p className="text-sm text-blue-800 dark:text-blue-200 mt-1">
+                        L'IA suggère de créer le label "<strong>{email.suggested_new_label}</strong>" pour mieux catégoriser ce type d'email.
+                      </p>
+                      {email.rule_reinforcement_suggestion && (
+                        <p className="text-xs text-blue-700 dark:text-blue-300 mt-1">
+                          {email.rule_reinforcement_suggestion}
                         </p>
-                        {email.rule_reinforcement_suggestion && (
-                          <p className="text-xs text-blue-700 dark:text-blue-300 mt-1">
-                            {email.rule_reinforcement_suggestion}
-                          </p>
-                        )}
-                      </div>
-                      <div className="flex gap-2">
-                        <Button 
-                          variant="default" 
-                          size="sm"
-                          onClick={() => handleCreateLabel(email.suggested_new_label)}
-                          disabled={loading}
-                          className="bg-blue-600 hover:bg-blue-700"
-                        >
-                          <ThumbsUp className="h-4 w-4 mr-1" />
-                          Valider
-                        </Button>
-                        <Button 
-                          variant="outline" 
-                          size="sm"
-                          onClick={async () => {
-                            try {
-                              await supabase
-                                .from('email_history')
-                                .update({ suggested_new_label: null, rule_reinforcement_suggestion: null })
-                                .eq('id', email.id);
-                              toast({ title: "Proposition refusée" });
-                              onEmailUpdated();
-                            } catch (error) {
-                              console.error(error);
-                            }
-                          }}
-                        >
-                          <ThumbsDown className="h-4 w-4 mr-1" />
-                          Refuser
-                        </Button>
-                      </div>
+                      )}
                     </div>
-                  </AlertDescription>
-                </Alert>
-              )}
+                    <div className="flex gap-2">
+                      <Button 
+                        variant="default" 
+                        size="sm"
+                        onClick={() => handleCreateLabel(email.suggested_new_label)}
+                        disabled={loading}
+                        className="bg-blue-600 hover:bg-blue-700"
+                      >
+                        <ThumbsUp className="h-4 w-4 mr-1" />
+                        Valider
+                      </Button>
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={async () => {
+                          try {
+                            await supabase
+                              .from('email_history')
+                              .update({ suggested_new_label: null, rule_reinforcement_suggestion: null })
+                              .eq('id', email.id);
+                            toast({ title: "Proposition refusée" });
+                            onEmailUpdated();
+                          } catch (error) {
+                            console.error(error);
+                          }
+                        }}
+                      >
+                        <ThumbsDown className="h-4 w-4 mr-1" />
+                        Refuser
+                      </Button>
+                    </div>
+                  </div>
+                </AlertDescription>
+              </Alert>
+            )}
 
-              {/* Créer événement calendrier */}
-              {email.needs_calendar_action && calendarDetails && (
+            {/* Ajouter l'expéditeur aux contacts */}
+            {!senderEmail.includes('noreply') && !senderEmail.includes('no-reply') && !senderEmail.includes('notification') && (
+              <Alert className="border-purple-200 bg-purple-50 dark:bg-purple-950">
+                <UserPlus className="h-4 w-4 text-purple-600" />
+                <AlertDescription>
+                  <div className="space-y-3">
+                    <div>
+                      <p className="font-medium text-purple-900 dark:text-purple-100">👤 Ajouter aux contacts</p>
+                      <p className="text-sm text-purple-800 dark:text-purple-200 mt-1">
+                        Créer une règle de contact pour <strong>{senderEmail}</strong>
+                      </p>
+                    </div>
+                    <Button 
+                      variant="default"
+                      size="sm"
+                      onClick={handleAddToContacts}
+                      disabled={loading}
+                      className="bg-purple-600 hover:bg-purple-700"
+                    >
+                      <UserPlus className="mr-2 h-4 w-4" />
+                      Ajouter ce contact
+                    </Button>
+                  </div>
+                </AlertDescription>
+              </Alert>
+            )}
+
+            {/* Créer événement calendrier */}
+            {email.needs_calendar_action && calendarDetails && (
                 <Alert className="border-green-200 bg-green-50 dark:bg-green-950">
                   <Calendar className="h-4 w-4 text-green-600" />
                   <AlertDescription>
@@ -287,7 +379,6 @@ export const EmailDetailsDialog = ({ email, open, onOpenChange, onEmailUpdated }
                 </Alert>
               )}
             </div>
-          )}
 
           {/* Actions effectuées */}
           {email.actions_taken && email.actions_taken.length > 0 && (

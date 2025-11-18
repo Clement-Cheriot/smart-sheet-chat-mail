@@ -43,7 +43,7 @@ serve(async (req) => {
     // Fetch contacts from Google People API
     console.log('Fetching contacts from Google People API...');
     const contactsResponse = await fetch(
-      'https://people.googleapis.com/v1/people/me/connections?personFields=names,emailAddresses,phoneNumbers,organizations,userDefined&pageSize=1000',
+      'https://people.googleapis.com/v1/people/me/connections?personFields=names,emailAddresses,phoneNumbers,organizations,userDefined,memberships&pageSize=1000',
       {
         headers: {
           'Authorization': `Bearer ${tokens.access_token}`,
@@ -102,8 +102,9 @@ serve(async (req) => {
           .eq('user_id', user.id);
 
         // Retry with new token
+        console.log('Retrying with refreshed token...');
         const retryResponse = await fetch(
-          'https://people.googleapis.com/v1/people/me/connections?personFields=names,emailAddresses,phoneNumbers,organizations,userDefined&pageSize=1000',
+          'https://people.googleapis.com/v1/people/me/connections?personFields=names,emailAddresses,phoneNumbers,organizations,userDefined,memberships&pageSize=1000',
           {
             headers: {
               'Authorization': `Bearer ${newTokens.access_token}`,
@@ -151,11 +152,24 @@ async function syncContacts(supabaseClient: any, userId: string, connections: an
     const phones = connection.phoneNumbers || [];
     const orgs = connection.organizations || [];
     const userDefined = connection.userDefined || [];
+    const memberships = connection.memberships || [];
 
     // Extract labels from userDefined fields
-    const labels = userDefined
+    const customLabels = userDefined
       .filter((field: any) => field.key === 'label')
       .map((field: any) => field.value);
+
+    // Extract group names from memberships (contactGroupMembership)
+    const groupLabels = memberships
+      .filter((m: any) => m.contactGroupMembership?.contactGroupResourceName)
+      .map((m: any) => {
+        const groupName = m.contactGroupMembership.contactGroupResourceName;
+        // Extract the group name from the resource name (e.g., "contactGroups/myContacts" -> "myContacts")
+        return groupName.split('/').pop() || groupName;
+      });
+
+    // Combine both types of labels
+    const allLabels = [...customLabels, ...groupLabels];
 
     if (emails.length > 0) {
       contactsToUpsert.push({
@@ -164,7 +178,7 @@ async function syncContacts(supabaseClient: any, userId: string, connections: an
         email: emails[0].value,
         name: names.length > 0 ? names[0].displayName : null,
         phone: phones.length > 0 ? phones[0].value : null,
-        labels: labels.length > 0 ? labels : null,
+        labels: allLabels.length > 0 ? allLabels : null,
         notes: orgs.length > 0 ? orgs[0].name : null,
         last_synced_at: new Date().toISOString(),
       });
