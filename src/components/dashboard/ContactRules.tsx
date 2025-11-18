@@ -10,6 +10,7 @@ import { Card } from "@/components/ui/card";
 import { Trash2, Edit, Plus } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { GoogleContactsSync } from "./GoogleContactsSync";
+import { ContactGroupsManager } from "./ContactGroupsManager";
 
 interface ContactRule {
   id: string;
@@ -166,6 +167,7 @@ export const ContactRules = () => {
 
   return (
     <div className="space-y-4">
+      <ContactGroupsManager />
       <GoogleContactsSync />
       
       <div className="flex justify-between items-center">

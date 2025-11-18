@@ -29,6 +29,8 @@ interface EmailDetailsDialogProps {
 export const EmailDetailsDialog = ({ email, open, onOpenChange, onEmailUpdated }: EmailDetailsDialogProps) => {
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
+  const [suggestedGroups, setSuggestedGroups] = useState<any[]>([]);
+  const [loadingGroups, setLoadingGroups] = useState(false);
 
   if (!email) return null;
 
@@ -333,18 +335,20 @@ export const EmailDetailsDialog = ({ email, open, onOpenChange, onEmailUpdated }
                       <p className="text-sm text-purple-800 dark:text-purple-200 mt-1">
                         Créer une règle de contact pour <strong>{senderEmail}</strong>
                       </p>
-                    </div>
-                    <Button 
-                      variant="default"
-                      size="sm"
-                      onClick={handleAddToContacts}
-                      disabled={loading}
-                      className="bg-purple-600 hover:bg-purple-700"
-                    >
-                      <UserPlus className="mr-2 h-4 w-4" />
-                      Ajouter ce contact
-                    </Button>
-                  </div>
+                     </div>
+                     <div className="flex gap-2">
+                       <Button 
+                         variant="default"
+                         size="sm"
+                         onClick={handleAddToContacts}
+                         disabled={loading}
+                         className="bg-purple-600 hover:bg-purple-700"
+                       >
+                         <UserPlus className="mr-2 h-4 w-4" />
+                         Ajouter ce contact
+                       </Button>
+                     </div>
+                   </div>
                 </AlertDescription>
               </Alert>
             )}
