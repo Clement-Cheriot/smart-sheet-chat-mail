@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
-import { UserPlus, Mail, Calendar, Tag, Send } from 'lucide-react';
+import { UserPlus, Mail, Calendar, Tag, Send, Edit, TrendingUp } from 'lucide-react';
 import { 
   Select,
   SelectContent,
@@ -24,6 +24,9 @@ export const EmailAIActions = ({ email, onUpdate, existingLabels }: EmailAIActio
   const [selectedLabel, setSelectedLabel] = useState<string>('');
   const [newLabel, setNewLabel] = useState('');
   const [isCreatingNewLabel, setIsCreatingNewLabel] = useState(false);
+  const [showLabelChange, setShowLabelChange] = useState(false);
+  const [showPriorityChange, setShowPriorityChange] = useState(false);
+  const [newPriority, setNewPriority] = useState<number>(email.priority_score || 5);
 
   const handleAddToContacts = async () => {
     setProcessing(true);
@@ -42,6 +45,46 @@ export const EmailAIActions = ({ email, onUpdate, existingLabels }: EmailAIActio
       if (error) throw error;
 
       toast({ title: 'Contact ajouté', description: 'Le contact a été ajouté avec succès' });
+      onUpdate();
+    } catch (error: any) {
+      toast({ title: 'Erreur', description: error.message, variant: 'destructive' });
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  const handleChangeLabel = async () => {
+    const labelToApply = isCreatingNewLabel ? newLabel : selectedLabel;
+    if (!labelToApply) {
+      toast({ title: 'Erreur', description: 'Veuillez sélectionner ou créer un label', variant: 'destructive' });
+      return;
+    }
+
+    setProcessing(true);
+    try {
+      // Update email history with new label
+      const { error: updateError } = await supabase
+        .from('email_history')
+        .update({ applied_label: [labelToApply] })
+        .eq('id', email.id);
+
+      if (updateError) throw updateError;
+
+      // Update Gmail label via edge function
+      await supabase.functions.invoke('gmail-actions', {
+        body: {
+          action: 'modify_labels',
+          userId: email.user_id,
+          messageId: email.gmail_message_id,
+          addLabels: [labelToApply],
+        },
+      });
+
+      toast({ title: 'Label modifié', description: `Le label "${labelToApply}" a été appliqué` });
+      setSelectedLabel('');
+      setNewLabel('');
+      setIsCreatingNewLabel(false);
+      setShowLabelChange(false);
       onUpdate();
     } catch (error: any) {
       toast({ title: 'Erreur', description: error.message, variant: 'destructive' });
@@ -79,6 +122,26 @@ export const EmailAIActions = ({ email, onUpdate, existingLabels }: EmailAIActio
       setSelectedLabel('');
       setNewLabel('');
       setIsCreatingNewLabel(false);
+      onUpdate();
+    } catch (error: any) {
+      toast({ title: 'Erreur', description: error.message, variant: 'destructive' });
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  const handleChangePriority = async () => {
+    setProcessing(true);
+    try {
+      const { error } = await supabase
+        .from('email_history')
+        .update({ priority_score: newPriority })
+        .eq('id', email.id);
+
+      if (error) throw error;
+
+      toast({ title: 'Priorité modifiée', description: `Priorité changée à ${newPriority}/10` });
+      setShowPriorityChange(false);
       onUpdate();
     } catch (error: any) {
       toast({ title: 'Erreur', description: error.message, variant: 'destructive' });
@@ -166,113 +229,166 @@ export const EmailAIActions = ({ email, onUpdate, existingLabels }: EmailAIActio
   const showCreateLabel = aiAnalysis.suggested_label;
   const showAddCalendar = email.needs_calendar_action && email.calendar_details;
 
-  if (!showAddContact && !showCreateDraft && !showAutoReply && !showCreateLabel && !showAddCalendar) {
-    return null;
-  }
-
   return (
-    <div className="space-y-2 p-3 bg-muted/30 rounded-lg border">
-      <p className="text-xs font-medium text-muted-foreground">Actions IA disponibles :</p>
-      <div className="flex flex-wrap gap-2">
-        {showAddContact && (
+    <div className="space-y-3 p-3 bg-muted/30 rounded-lg border">
+      {/* Actions standards toujours disponibles */}
+      <div>
+        <p className="text-xs font-medium text-muted-foreground mb-2">Actions disponibles :</p>
+        <div className="flex flex-wrap gap-2">
           <Button
             size="sm"
             variant="outline"
-            onClick={handleAddToContacts}
+            onClick={() => setShowLabelChange(!showLabelChange)}
             disabled={processing}
           >
-            <UserPlus className="h-3 w-3 mr-1" />
-            Ajouter ce contact
+            <Edit className="h-3 w-3 mr-1" />
+            Changer le label
           </Button>
-        )}
+          
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => setShowPriorityChange(!showPriorityChange)}
+            disabled={processing}
+          >
+            <TrendingUp className="h-3 w-3 mr-1" />
+            Changer la priorité
+          </Button>
+        </div>
+      </div>
 
-        {showCreateLabel && (
-          <div className="flex items-center gap-2 w-full">
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => setIsCreatingNewLabel(!isCreatingNewLabel)}
-              disabled={processing}
-            >
-              <Tag className="h-3 w-3 mr-1" />
-              Créer et appliquer un label
-            </Button>
-            {isCreatingNewLabel ? (
-              <div className="flex items-center gap-2 flex-1">
-                <Input
-                  placeholder="Nouveau label..."
-                  value={newLabel}
-                  onChange={(e) => setNewLabel(e.target.value)}
-                  className="h-8"
-                />
-                <Button size="sm" onClick={handleCreateLabel} disabled={processing || !newLabel}>
-                  Créer
-                </Button>
-              </div>
-            ) : (
-              <div className="flex items-center gap-2 flex-1">
-                <Select value={selectedLabel} onValueChange={setSelectedLabel}>
-                  <SelectTrigger className="h-8">
-                    <SelectValue placeholder="Choisir un label..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {existingLabels.map((label) => (
-                      <SelectItem key={label} value={label}>
-                        {label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <Button size="sm" onClick={handleCreateLabel} disabled={processing || !selectedLabel}>
-                  Appliquer
-                </Button>
-              </div>
+      {/* Interface de changement de label */}
+      {showLabelChange && (
+        <div className="flex items-center gap-2 p-2 bg-background rounded border">
+          {isCreatingNewLabel ? (
+            <>
+              <Input
+                placeholder="Nouveau label..."
+                value={newLabel}
+                onChange={(e) => setNewLabel(e.target.value)}
+                className="h-8"
+              />
+              <Button size="sm" onClick={handleChangeLabel} disabled={processing || !newLabel}>
+                Appliquer
+              </Button>
+              <Button size="sm" variant="ghost" onClick={() => setIsCreatingNewLabel(false)}>
+                Existant
+              </Button>
+            </>
+          ) : (
+            <>
+              <Select value={selectedLabel} onValueChange={setSelectedLabel}>
+                <SelectTrigger className="h-8">
+                  <SelectValue placeholder="Choisir un label..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {existingLabels.map((label) => (
+                    <SelectItem key={label} value={label}>
+                      {label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button size="sm" onClick={handleChangeLabel} disabled={processing || !selectedLabel}>
+                Appliquer
+              </Button>
+              <Button size="sm" variant="ghost" onClick={() => setIsCreatingNewLabel(true)}>
+                Nouveau
+              </Button>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* Interface de changement de priorité */}
+      {showPriorityChange && (
+        <div className="flex items-center gap-2 p-2 bg-background rounded border">
+          <Select value={newPriority.toString()} onValueChange={(v) => setNewPriority(Number(v))}>
+            <SelectTrigger className="h-8 w-32">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((priority) => (
+                <SelectItem key={priority} value={priority.toString()}>
+                  Priorité {priority}/10
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Button size="sm" onClick={handleChangePriority} disabled={processing}>
+            Appliquer
+          </Button>
+        </div>
+      )}
+
+      {/* Actions suggérées par l'IA */}
+      {(showAddContact || showCreateDraft || showAutoReply || showCreateLabel || showAddCalendar) && (
+        <div>
+          <p className="text-xs font-medium text-muted-foreground mb-2">Actions suggérées par l'IA :</p>
+          <div className="flex flex-wrap gap-2">
+            {showAddContact && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleAddToContacts}
+                disabled={processing}
+              >
+                <UserPlus className="h-3 w-3 mr-1" />
+                Ajouter ce contact
+              </Button>
+            )}
+
+            {showCreateLabel && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  setShowLabelChange(true);
+                  setIsCreatingNewLabel(true);
+                }}
+                disabled={processing}
+              >
+                <Tag className="h-3 w-3 mr-1" />
+                Créer label: {aiAnalysis.suggested_label}
+              </Button>
+            )}
+
+            {showCreateDraft && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleCreateDraft}
+                disabled={processing}
+              >
+                <Mail className="h-3 w-3 mr-1" />
+                Créer un brouillon
+              </Button>
+            )}
+
+            {showAutoReply && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleAutoReply}
+                disabled={processing}
+              >
+                <Send className="h-3 w-3 mr-1" />
+                Répondre automatiquement
+              </Button>
+            )}
+
+            {showAddCalendar && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleAddToCalendar}
+                disabled={processing}
+              >
+                <Calendar className="h-3 w-3 mr-1" />
+                Ajouter au calendrier
+              </Button>
             )}
           </div>
-        )}
-
-        {showCreateDraft && (
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={handleCreateDraft}
-            disabled={processing}
-          >
-            <Mail className="h-3 w-3 mr-1" />
-            Créer un brouillon
-          </Button>
-        )}
-
-        {showAutoReply && (
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={handleAutoReply}
-            disabled={processing}
-          >
-            <Send className="h-3 w-3 mr-1" />
-            Répondre automatiquement
-          </Button>
-        )}
-
-        {showAddCalendar && (
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={handleAddToCalendar}
-            disabled={processing}
-          >
-            <Calendar className="h-3 w-3 mr-1" />
-            Ajouter au calendrier
-          </Button>
-        )}
-      </div>
-      
-      {aiAnalysis.suggested_label && (
-        <div className="mt-2">
-          <Badge variant="outline" className="text-xs">
-            Label suggéré : {aiAnalysis.suggested_label}
-          </Badge>
         </div>
       )}
     </div>
