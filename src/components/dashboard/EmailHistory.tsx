@@ -354,13 +354,15 @@ export const EmailHistory = () => {
                   )}
                 </div>
               </div>
+            </CardHeader>
 
+            <CardContent className="pt-0">
               <EmailAIActions 
                 email={email} 
                 onUpdate={loadEmails}
                 existingLabels={existingLabels}
               />
-            </CardHeader>
+            </CardContent>
 
             <CollapsibleTrigger asChild>
               <Button variant="ghost" size="sm" className="w-full">
