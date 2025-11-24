@@ -8,8 +8,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import { toast } from '@/hooks/use-toast';
 import { formatDistanceToNow } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { Mail, Tag, Clock, ChevronDown, Check, X, Lightbulb, Brain, Calendar, MessageSquare, Trash, RefreshCw, Info } from 'lucide-react';
-import { EmailDetailsDialog } from './EmailDetailsDialog';
+import { Mail, Tag, Clock, ChevronDown, Check, X, Lightbulb, Brain, Calendar, MessageSquare, Trash, RefreshCw } from 'lucide-react';
 import { RuleReinforcementDialog } from './RuleReinforcementDialog';
 import { EmailAIActions } from './EmailAIActions';
 import { 
@@ -51,7 +50,6 @@ export const EmailHistory = () => {
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [selectedEmail, setSelectedEmail] = useState<EmailRecord | null>(null);
-  const [detailsDialogOpen, setDetailsDialogOpen] = useState(false);
   const [ruleReinforcementDialogOpen, setRuleReinforcementDialogOpen] = useState(false);
   const [existingLabels, setExistingLabels] = useState<string[]>([]);
   const { user } = useAuth();
@@ -264,21 +262,16 @@ export const EmailHistory = () => {
             <CardHeader className="pb-3">
               <div className="flex items-start justify-between gap-4">
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between mb-1">
-                    <div className="flex items-center gap-2">
-                      <Mail className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                      <p className="font-medium truncate">Expéditeur : {getDisplaySender(email.sender)}</p>
-                    </div>
-                    <Button 
-                      variant="ghost" 
-                      size="sm"
-                      onClick={() => {
-                        setSelectedEmail(email);
-                        setDetailsDialogOpen(true);
-                      }}
-                    >
-                      <Info className="h-4 w-4" />
-                    </Button>
+                  <div className="flex items-center gap-2 mb-1">
+                    <Mail className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                    <p className="font-medium truncate">Expéditeur : {getDisplaySender(email.sender)}</p>
+                  </div>
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground mb-2">
+                    <Clock className="h-3 w-3" />
+                    {formatDistanceToNow(new Date(email.received_at), {
+                      addSuffix: true,
+                      locale: fr,
+                    })}
                   </div>
                   <CardTitle className="text-sm font-medium mb-1">
                     {email.subject || 'Sans objet'}
@@ -290,23 +283,18 @@ export const EmailHistory = () => {
                   )}
                 </div>
                 <div className="text-right flex-shrink-0">
-                  <div className="flex items-center gap-2 text-xs text-muted-foreground mb-2">
-                    <Clock className="h-3 w-3" />
-                    {formatDistanceToNow(new Date(email.received_at), {
-                      addSuffix: true,
-                      locale: fr,
-                    })}
+                  <div className="flex items-center gap-2 mb-2">
                     {email.confidence !== undefined && (
                       <Badge className={`text-xs border ${getConfidenceColor(email.confidence)}`}>
                         {email.confidence}%
                       </Badge>
                     )}
+                    {email.priority_score && (
+                      <Badge variant={getPriorityColor(email.priority_score)} className="text-xs">
+                        Priorité {email.priority_score}/10
+                      </Badge>
+                    )}
                   </div>
-                  {email.priority_score && (
-                    <Badge variant={getPriorityColor(email.priority_score)} className="text-xs">
-                      Priorité {email.priority_score}/10
-                    </Badge>
-                  )}
                 </div>
               </div>
 
@@ -439,20 +427,12 @@ export const EmailHistory = () => {
       ))}
 
       {selectedEmail && (
-        <>
-          <EmailDetailsDialog
-            email={selectedEmail}
-            open={detailsDialogOpen}
-            onOpenChange={setDetailsDialogOpen}
-            onEmailUpdated={loadEmails}
-          />
-          <RuleReinforcementDialog
-            email={selectedEmail}
-            open={ruleReinforcementDialogOpen}
-            onOpenChange={setRuleReinforcementDialogOpen}
-            onUpdated={loadEmails}
-          />
-        </>
+        <RuleReinforcementDialog
+          email={selectedEmail}
+          open={ruleReinforcementDialogOpen}
+          onOpenChange={setRuleReinforcementDialogOpen}
+          onUpdated={loadEmails}
+        />
       )}
     </div>
   );
