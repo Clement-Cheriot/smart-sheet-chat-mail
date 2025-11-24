@@ -8,11 +8,10 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import { toast } from '@/hooks/use-toast';
 import { formatDistanceToNow } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { Mail, Tag, Clock, ChevronDown, Check, X, Lightbulb, Brain, Calendar, MessageSquare, Trash, RefreshCw, MoreVertical, Info, Edit } from 'lucide-react';
-import { EmailActionsDialog } from './EmailActionsDialog';
+import { Mail, Tag, Clock, ChevronDown, Check, X, Lightbulb, Brain, Calendar, MessageSquare, Trash, RefreshCw, Info } from 'lucide-react';
 import { EmailDetailsDialog } from './EmailDetailsDialog';
-import { ChangeLabelDialog } from './ChangeLabelDialog';
 import { RuleReinforcementDialog } from './RuleReinforcementDialog';
+import { EmailAIActions } from './EmailAIActions';
 import { 
   DropdownMenu,
   DropdownMenuContent,
@@ -52,17 +51,46 @@ export const EmailHistory = () => {
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [selectedEmail, setSelectedEmail] = useState<EmailRecord | null>(null);
-  const [actionsDialogOpen, setActionsDialogOpen] = useState(false);
   const [detailsDialogOpen, setDetailsDialogOpen] = useState(false);
-  const [changeLabelDialogOpen, setChangeLabelDialogOpen] = useState(false);
   const [ruleReinforcementDialogOpen, setRuleReinforcementDialogOpen] = useState(false);
+  const [existingLabels, setExistingLabels] = useState<string[]>([]);
   const { user } = useAuth();
 
   useEffect(() => {
     if (user) {
       loadEmails();
+      loadExistingLabels();
     }
   }, [user]);
+
+  const loadExistingLabels = async () => {
+    try {
+      const { data: rulesData } = await supabase
+        .from('email_rules')
+        .select('label_to_apply')
+        .eq('user_id', user?.id)
+        .eq('is_active', true);
+
+      const { data: historyData } = await supabase
+        .from('email_history')
+        .select('applied_label')
+        .eq('user_id', user?.id);
+
+      const labels = new Set<string>();
+      rulesData?.forEach(r => r.label_to_apply && labels.add(r.label_to_apply));
+      historyData?.forEach(h => {
+        if (Array.isArray(h.applied_label)) {
+          h.applied_label.forEach(l => labels.add(l));
+        } else if (h.applied_label) {
+          labels.add(h.applied_label);
+        }
+      });
+
+      setExistingLabels(Array.from(labels));
+    } catch (error) {
+      console.error('Error loading labels:', error);
+    }
+  };
 
   const loadEmails = async () => {
     try {
@@ -241,36 +269,16 @@ export const EmailHistory = () => {
                       <Mail className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                       <p className="font-medium truncate">Expéditeur : {getDisplaySender(email.sender)}</p>
                     </div>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="sm">
-                          <MoreVertical className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="z-50">
-                        <DropdownMenuItem onClick={() => {
-                          setSelectedEmail(email);
-                          setDetailsDialogOpen(true);
-                        }}>
-                          <Info className="mr-2 h-4 w-4" />
-                          Voir détails
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => {
-                          setSelectedEmail(email);
-                          setChangeLabelDialogOpen(true);
-                        }}>
-                          <Edit className="mr-2 h-4 w-4" />
-                          Changer label
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => {
-                          setSelectedEmail(email);
-                          setActionsDialogOpen(true);
-                        }}>
-                          <MessageSquare className="mr-2 h-4 w-4" />
-                          Actions email
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+                    <Button 
+                      variant="ghost" 
+                      size="sm"
+                      onClick={() => {
+                        setSelectedEmail(email);
+                        setDetailsDialogOpen(true);
+                      }}
+                    >
+                      <Info className="h-4 w-4" />
+                    </Button>
                   </div>
                   <CardTitle className="text-sm font-medium mb-1">
                     {email.subject || 'Sans objet'}
@@ -303,60 +311,38 @@ export const EmailHistory = () => {
               </div>
 
               <div className="mt-3 space-y-2">
-                <p className="text-xs font-medium text-muted-foreground">Actions de l'IA :</p>
+                <p className="text-xs font-medium text-muted-foreground">Actions effectuées :</p>
                 <div className="flex flex-col gap-2">
-              {email.applied_label && Array.isArray(email.applied_label) && email.applied_label.length > 0 && (
-                <div className="flex items-center gap-2 text-xs">
-                  <Tag className="h-3 w-3 text-primary" />
-                  <span className="font-medium">Application de label :</span>
-                  <div className="flex flex-wrap gap-1">
-                    {email.applied_label.map((label: string, idx: number) => (
-                      <Badge key={idx} variant="outline" className="text-xs">{label}</Badge>
-                    ))}
-                  </div>
-                </div>
-              )}
+                  {email.applied_label && Array.isArray(email.applied_label) && email.applied_label.length > 0 && (
+                    <div className="flex items-center gap-2 text-xs">
+                      <Tag className="h-3 w-3 text-primary" />
+                      <span className="font-medium">Labels :</span>
+                      <div className="flex flex-wrap gap-1">
+                        {email.applied_label.map((label: string, idx: number) => (
+                          <Badge key={idx} variant="outline" className="text-xs">{label}</Badge>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                   
                   {email.draft_created && email.draft_id && (
                     <div className="flex items-center gap-2 text-xs">
                       <Mail className="h-3 w-3 text-blue-500" />
                       <span className="font-medium">Brouillon créé dans Gmail</span>
-                      <Button 
-                        variant="link" 
-                        size="sm" 
-                        className="h-auto p-0 text-xs"
-                        onClick={() => {
-                          setSelectedEmail(email);
-                          setDetailsDialogOpen(true);
-                        }}
-                      >
-                        Voir détails
-                      </Button>
                     </div>
                   )}
                   
                   {email.telegram_notified && (
                     <div className="flex items-center gap-2 text-xs">
                       <MessageSquare className="h-3 w-3 text-green-500" />
-                      <span className="font-medium">Notification urgente Telegram</span>
+                      <span className="font-medium">Notification Telegram envoyée</span>
                     </div>
                   )}
                   
                   {email.needs_calendar_action && email.calendar_details && (
                     <div className="flex items-center gap-2 text-xs">
                       <Calendar className="h-3 w-3 text-orange-500" />
-                      <span className="font-medium">Événement calendrier détecté :</span>
-                      <Button 
-                        variant="link" 
-                        size="sm" 
-                        className="h-auto p-0 text-xs"
-                        onClick={() => {
-                          setSelectedEmail(email);
-                          setDetailsDialogOpen(true);
-                        }}
-                      >
-                        Voir détails
-                      </Button>
+                      <span className="font-medium">Événement calendrier détecté</span>
                     </div>
                   )}
 
@@ -364,7 +350,7 @@ export const EmailHistory = () => {
                    (email.rule_reinforcement.add_keywords?.length > 0 || email.rule_reinforcement.add_domains?.length > 0) && (
                     <div className="flex items-center gap-2 text-xs">
                       <Lightbulb className="h-3 w-3 text-blue-500" />
-                      <span className="font-medium">Suggestion de renforcement de règle :</span>
+                      <span className="font-medium">Suggestion de renforcement disponible</span>
                       <Button 
                         variant="link" 
                         size="sm" 
@@ -374,18 +360,24 @@ export const EmailHistory = () => {
                           setRuleReinforcementDialogOpen(true);
                         }}
                       >
-                        Voir détails
+                        Voir
                       </Button>
                     </div>
                   )}
                 </div>
               </div>
+
+              <EmailAIActions 
+                email={email} 
+                onUpdate={loadEmails}
+                existingLabels={existingLabels}
+              />
             </CardHeader>
 
             <CollapsibleTrigger asChild>
               <Button variant="ghost" size="sm" className="w-full">
                 <ChevronDown className="h-4 w-4 mr-2" />
-                Voir les détails
+                Voir le raisonnement IA
               </Button>
             </CollapsibleTrigger>
 
@@ -448,22 +440,10 @@ export const EmailHistory = () => {
 
       {selectedEmail && (
         <>
-          <EmailActionsDialog
-            email={selectedEmail}
-            open={actionsDialogOpen}
-            onOpenChange={setActionsDialogOpen}
-            onUpdate={loadEmails}
-          />
           <EmailDetailsDialog
             email={selectedEmail}
             open={detailsDialogOpen}
             onOpenChange={setDetailsDialogOpen}
-            onEmailUpdated={loadEmails}
-          />
-          <ChangeLabelDialog
-            email={selectedEmail}
-            open={changeLabelDialogOpen}
-            onOpenChange={setChangeLabelDialogOpen}
             onEmailUpdated={loadEmails}
           />
           <RuleReinforcementDialog
