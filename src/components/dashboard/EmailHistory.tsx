@@ -268,10 +268,22 @@ export const EmailHistory = () => {
                   </div>
                   <div className="flex items-center gap-2 text-xs text-muted-foreground mb-2">
                     <Clock className="h-3 w-3" />
-                    {formatDistanceToNow(new Date(email.received_at), {
-                      addSuffix: true,
-                      locale: fr,
-                    })}
+                    <span>
+                      {new Date(email.received_at).toLocaleDateString('fr-FR', {
+                        day: '2-digit',
+                        month: '2-digit',
+                        year: 'numeric',
+                      })} à {new Date(email.received_at).toLocaleTimeString('fr-FR', {
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })}
+                    </span>
+                    <span className="text-muted-foreground/70">
+                      ({formatDistanceToNow(new Date(email.received_at), {
+                        addSuffix: true,
+                        locale: fr,
+                      })})
+                    </span>
                   </div>
                   <CardTitle className="text-sm font-medium mb-1">
                     {email.subject || 'Sans objet'}
