@@ -24,12 +24,18 @@ export const ChangeLabelDialog = ({ email, open, onOpenChange, onEmailUpdated }:
   const [newLabelName, setNewLabelName] = useState('');
   const [userReason, setUserReason] = useState('');
   const [isCreatingNew, setIsCreatingNew] = useState(false);
+  const [currentLabelToChange, setCurrentLabelToChange] = useState<string>('');
 
   useEffect(() => {
     if (open) {
       loadExistingLabels();
+      // Pré-sélectionner le premier label si disponible
+      const labels = Array.isArray(email?.applied_label) ? email.applied_label : [email?.applied_label].filter(Boolean);
+      if (labels.length > 0) {
+        setCurrentLabelToChange(labels[0]);
+      }
     }
-  }, [open]);
+  }, [open, email]);
 
   const loadExistingLabels = async () => {
     try {
@@ -63,11 +69,11 @@ export const ChangeLabelDialog = ({ email, open, onOpenChange, onEmailUpdated }:
   const handleSubmit = async () => {
     const finalLabel = isCreatingNew ? newLabelName : selectedLabel;
 
-    if (!finalLabel || !userReason.trim()) {
+    if (!currentLabelToChange || !finalLabel || !userReason.trim()) {
       toast({
         variant: "destructive",
         title: "Champs requis",
-        description: "Veuillez sélectionner/créer un label et expliquer pourquoi.",
+        description: "Veuillez sélectionner le label à changer, le nouveau label et expliquer pourquoi.",
       });
       return;
     }
@@ -77,17 +83,13 @@ export const ChangeLabelDialog = ({ email, open, onOpenChange, onEmailUpdated }:
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('User not authenticated');
 
-      const currentLabel = Array.isArray(email.applied_label) 
-        ? email.applied_label[0] 
-        : email.applied_label;
-
       // Appel à l'IA feedback
       const { data, error } = await supabase.functions.invoke('ai-feedback', {
         body: {
           email_id: email.id,
           email_subject: email.subject,
           email_sender: email.sender,
-          old_label: currentLabel,
+          old_label: currentLabelToChange,
           new_label: finalLabel,
           user_reason: userReason
         }
@@ -104,6 +106,7 @@ export const ChangeLabelDialog = ({ email, open, onOpenChange, onEmailUpdated }:
       onOpenChange(false);
       
       // Reset form
+      setCurrentLabelToChange('');
       setSelectedLabel('');
       setNewLabelName('');
       setUserReason('');
@@ -129,12 +132,17 @@ export const ChangeLabelDialog = ({ email, open, onOpenChange, onEmailUpdated }:
 
         <div className="space-y-4">
           <div className="space-y-2">
-            <Label>Label actuel</Label>
-            <div className="p-2 bg-muted rounded text-sm">
-              {Array.isArray(email?.applied_label) 
-                ? email.applied_label.join(', ') 
-                : email?.applied_label || 'Aucun'}
-            </div>
+            <Label>Label à changer <span className="text-destructive">*</span></Label>
+            <Select value={currentLabelToChange} onValueChange={setCurrentLabelToChange}>
+              <SelectTrigger>
+                <SelectValue placeholder="Sélectionner le label à modifier" />
+              </SelectTrigger>
+              <SelectContent>
+                {(Array.isArray(email?.applied_label) ? email.applied_label : [email?.applied_label].filter(Boolean)).map(label => (
+                  <SelectItem key={label} value={label}>{label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           <div className="space-y-2">
