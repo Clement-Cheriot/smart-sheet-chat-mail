@@ -2,10 +2,11 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
-import { UserPlus, Mail, Calendar, Tag, Send, Edit, TrendingUp } from 'lucide-react';
+import { UserPlus, Mail, Calendar, Tag, Send, Edit, TrendingUp, Plus } from 'lucide-react';
 import { ChangeLabelDialog } from './ChangeLabelDialog';
 import { ChangePriorityDialog } from './ChangePriorityDialog';
 import { AddContactDialog } from './AddContactDialog';
+import { ApplyNewLabelDialog } from './ApplyNewLabelDialog';
 
 interface EmailAIActionsProps {
   email: any;
@@ -18,6 +19,8 @@ export const EmailAIActions = ({ email, onUpdate, existingLabels }: EmailAIActio
   const [labelDialogOpen, setLabelDialogOpen] = useState(false);
   const [priorityDialogOpen, setPriorityDialogOpen] = useState(false);
   const [contactDialogOpen, setContactDialogOpen] = useState(false);
+  const [applyLabelDialogOpen, setApplyLabelDialogOpen] = useState(false);
+  const [suggestedLabelForDialog, setSuggestedLabelForDialog] = useState<string | undefined>();
 
 
   const handleCreateDraft = async () => {
@@ -119,6 +122,19 @@ export const EmailAIActions = ({ email, onUpdate, existingLabels }: EmailAIActio
             <Button
               size="sm"
               variant="outline"
+              onClick={() => {
+                setSuggestedLabelForDialog(undefined);
+                setApplyLabelDialogOpen(true);
+              }}
+              disabled={processing}
+            >
+              <Plus className="h-3 w-3 mr-1" />
+              Appliquer un nouveau label
+            </Button>
+            
+            <Button
+              size="sm"
+              variant="outline"
               onClick={() => setPriorityDialogOpen(true)}
               disabled={processing}
             >
@@ -134,6 +150,36 @@ export const EmailAIActions = ({ email, onUpdate, existingLabels }: EmailAIActio
             >
               <UserPlus className="h-3 w-3 mr-1" />
               Ajouter au contact
+            </Button>
+
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={handleCreateDraft}
+              disabled={processing}
+            >
+              <Mail className="h-3 w-3 mr-1" />
+              Rédiger un brouillon
+            </Button>
+
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={handleAutoReply}
+              disabled={processing}
+            >
+              <Send className="h-3 w-3 mr-1" />
+              Répondre automatiquement
+            </Button>
+
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={handleAddToCalendar}
+              disabled={processing}
+            >
+              <Calendar className="h-3 w-3 mr-1" />
+              Créer un événement calendrier
             </Button>
           </div>
         </div>
@@ -159,7 +205,10 @@ export const EmailAIActions = ({ email, onUpdate, existingLabels }: EmailAIActio
                 <Button
                   size="sm"
                   variant="outline"
-                  onClick={() => setLabelDialogOpen(true)}
+                  onClick={() => {
+                    setSuggestedLabelForDialog(aiAnalysis.suggested_label);
+                    setApplyLabelDialogOpen(true);
+                  }}
                   disabled={processing}
                 >
                   <Tag className="h-3 w-3 mr-1" />
@@ -226,6 +275,14 @@ export const EmailAIActions = ({ email, onUpdate, existingLabels }: EmailAIActio
         open={contactDialogOpen}
         onOpenChange={setContactDialogOpen}
         onContactAdded={onUpdate}
+      />
+
+      <ApplyNewLabelDialog
+        email={email}
+        open={applyLabelDialogOpen}
+        onOpenChange={setApplyLabelDialogOpen}
+        onEmailUpdated={onUpdate}
+        suggestedLabel={suggestedLabelForDialog}
       />
     </>
   );

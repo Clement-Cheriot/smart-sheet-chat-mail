@@ -428,9 +428,19 @@ export const EmailDetailsDialog = ({ email, open, onOpenChange, onEmailUpdated }
                   }
                   if (action.type === 'draft_created') {
                     return (
-                      <p key={i} className="text-sm text-blue-600 dark:text-blue-400">
-                        ✓ Brouillon créé dans Gmail
-                      </p>
+                      <div key={i} className="space-y-2">
+                        <p className="text-sm text-blue-600 dark:text-blue-400 font-medium">
+                          ✓ Brouillon créé dans Gmail
+                        </p>
+                        {email.draft_content && (
+                          <div className="ml-4 p-3 bg-blue-50 dark:bg-blue-950 border border-blue-200 rounded-md">
+                            <p className="text-xs font-medium text-blue-900 dark:text-blue-100 mb-1">Contenu du brouillon :</p>
+                            <p className="text-sm text-blue-800 dark:text-blue-200 whitespace-pre-wrap">
+                              {email.draft_content}
+                            </p>
+                          </div>
+                        )}
+                      </div>
                     );
                   }
                   if (action.type === 'auto_reply_sent') {
