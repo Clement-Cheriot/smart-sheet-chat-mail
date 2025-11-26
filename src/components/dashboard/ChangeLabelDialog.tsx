@@ -36,16 +36,25 @@ export const ChangeLabelDialog = ({ email, open, onOpenChange, onEmailUpdated }:
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      const { data, error } = await supabase
+      // Charger les labels depuis les règles
+      const { data: rulesData } = await supabase
         .from('email_rules')
         .select('label_to_apply')
         .eq('user_id', user.id)
         .eq('is_active', true);
 
-      if (error) throw error;
+      // Charger les labels depuis l'historique
+      const { data: historyData } = await supabase
+        .from('email_history')
+        .select('applied_label')
+        .eq('user_id', user.id);
 
-      const labels = [...new Set(data?.map(r => r.label_to_apply).filter(Boolean) || [])];
-      setExistingLabels(labels);
+      // Combiner et dédupliquer les labels
+      const rulesLabels = rulesData?.map(r => r.label_to_apply).filter(Boolean) || [];
+      const historyLabels = historyData?.flatMap(h => h.applied_label || []).filter(Boolean) || [];
+      const allLabels = [...new Set([...rulesLabels, ...historyLabels])].sort();
+      
+      setExistingLabels(allLabels);
     } catch (error) {
       console.error('Error loading labels:', error);
     }
